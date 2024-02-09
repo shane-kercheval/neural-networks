@@ -1,0 +1,8 @@
+fastparquet
+numpy
+pandas
+plotly
+plotly-express
+pytest
+ruff
+scikit-learn
