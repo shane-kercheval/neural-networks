@@ -1,4 +1,5 @@
 fastparquet
+matplotlib
 numpy
 pandas
 plotly
