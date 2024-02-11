@@ -7,3 +7,4 @@ plotly-express
 pytest
 ruff
 scikit-learn
+seaborn
