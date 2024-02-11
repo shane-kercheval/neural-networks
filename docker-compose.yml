@@ -7,10 +7,10 @@ services:
       - .:/code
     stdin_open: true # docker run -i
     tty: true        # docker run -t
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #       - driver: nvidia
-    #         count: all
-    #         capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
