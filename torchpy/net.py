@@ -498,4 +498,3 @@ class SGD:
     def __call__(self, parameters: np.ndarray, grads: np.ndarray) -> None:
         """Update the parameters using the gradients and learning rate."""
         parameters -= self.learning_rate * grads
-
