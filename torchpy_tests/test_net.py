@@ -1,12 +1,67 @@
 """Tests the neural network modules in torchpy.net."""
 import numpy as np
 import pytest
-from torchpy.net import CrossEntropyLoss, Module
+from torchpy import net
 
+
+@pytest.fixture()
+def softmax():  # noqa
+    net.Module.training = True
+    return net.Softmax()
+
+
+def test_softmax_forward_normal(softmax):  # noqa
+    """Test the softmax forward function with normal values."""
+    inputs = np.array([
+        [1.0, 2.0, 3.0],
+        [1.0, 2.0, 3.0],
+    ])
+    expected_outputs = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
+    expected_outputs /= expected_outputs.sum(axis=1, keepdims=True)
+    outputs = softmax.forward(inputs)
+    np.testing.assert_array_almost_equal(outputs, expected_outputs)
+
+def test_softmax_forward_large_values(softmax):  # noqa
+    """Test softmax with large values to check for stability."""
+    inputs = np.array([[1000, 1001, 1002],
+                       [1000, 1001, 1002]])
+    outputs = softmax.forward(inputs)
+    expected_outputs = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
+    expected_outputs /= expected_outputs.sum(axis=1, keepdims=True)
+
+    np.testing.assert_array_almost_equal(outputs, expected_outputs)
+
+def test_softmax_forward_identical_values(softmax):  # noqa
+    """Test softmax with identical values."""
+    inputs = np.array([[1000, 1000, 1000],
+                       [1000, 1000, 1000]])
+    outputs = softmax.forward(inputs)
+    expected_outputs = np.ones(inputs.shape) / inputs.shape[1]
+
+    np.testing.assert_array_almost_equal(outputs, expected_outputs)
+
+def test_softmax_backward(softmax):  # noqa
+    """Test the softmax backward function."""
+    logits = np.array([[1.0, 2.0, 3.0]])
+    predictions = softmax.forward(logits)
+    grad_output = np.array([[0.1, 0.3, 0.6]])
+    grad = softmax.backward(grad_output)
+
+    # Calculate the expected gradient using the formula derived for softmax derivatives
+    # ∂L/∂z_j = S_j * ( ∂L/∂S_j - sum(S_i * ∂L/∂S_i) )
+    s = predictions
+    expected_grad = np.zeros_like(s)
+    for i in range(len(s)):
+        si = s[i]
+        gi = grad_output[i]
+        dL_dsi = si * (gi - np.dot(si, gi))  # noqa
+        expected_grad[i] = dL_dsi
+
+    np.testing.assert_array_almost_equal(grad, expected_grad)
 
 def test_cross_entropy_loss_correctness():  # noqa
     """Test to ensure the cross-entropy loss is calculated correctly."""
-    loss_func = CrossEntropyLoss()
+    loss_func = net.CrossEntropyLoss()
 
     # Test case 1: Standard case with varying correct class indices
     predictions = np.array([
@@ -57,11 +112,11 @@ def test_training_mode_caching():  # noqa
     predictions = np.array([[0.2, 0.5, 0.3], [0.1, 0.8, 0.1]])
     targets = np.array([0, 1])
 
-    assert Module.training is False, "Module should not be in training mode initially"
+    assert net.Module.training is False, "Module should not be in training mode initially"
     # Test with the context manager for training mode
-    with Module.training_mode():
-        assert Module.training is True, "Module should be in training mode within context"
-        loss_func = CrossEntropyLoss()
+    with net.Module.training_mode():
+        assert net.Module.training is True, "Module should be in training mode within context"
+        loss_func = net.CrossEntropyLoss()
         assert loss_func.predictions is None, "Should not have any predictions initially"
         assert loss_func.targets is None, "Should not have any targets initially"
         loss_func(predictions, targets)
@@ -77,7 +132,7 @@ def test_training_mode_caching():  # noqa
         assert loss_func.targets is None, "Should clear targets after backward pass"
 
 
-    assert Module.training is False, "Module should not be in training mode outside context"
+    assert net.Module.training is False, "Module should not be in training mode outside context"
     loss_func(predictions, targets)
     assert loss_func.predictions is None, "Should not cache predictions outside training mode"
     assert loss_func.targets is None, "Should not cache targets outside training mode"
@@ -86,18 +141,17 @@ def test_training_mode_caching():  # noqa
     loss_func.targets = 1  # mock targets to ensure error is due to training mode
     pytest.raises(AssertionError, loss_func.backward)
 
-
 def test_loss_computation_independence_from_mode():  # noqa
     """Test that the computation of the loss does not depend on the training mode."""
     inputs = np.array([[0.2, 0.8], [0.5, 0.5]])
     targets = np.array([1, 0])
 
-    with Module.training_mode():
-        loss_module = CrossEntropyLoss()
+    with net.Module.training_mode():
+        loss_module = net.CrossEntropyLoss()
         loss_training = loss_module.forward(inputs, targets)
 
     # Module.training should automatically revert to False outside of 'with' block
-    loss_module = CrossEntropyLoss()
+    loss_module = net.CrossEntropyLoss()
     loss_inference = loss_module.forward(inputs, targets)
 
     # Verify that loss values are identical regardless of the mode
@@ -112,9 +166,9 @@ def test_cross_entropy_gradient_correctness():  # noqa
     predictions = np.array([[0.2, 0.5, 0.3]])
     targets = np.array([1])  # correct class index
 
-    loss_module = CrossEntropyLoss()
+    loss_module = net.CrossEntropyLoss()
 
-    with Module.training_mode():
+    with net.Module.training_mode():
         loss_module.forward(predictions, targets)
         actual_grad = loss_module.backward()
 
@@ -129,4 +183,3 @@ def test_cross_entropy_gradient_correctness():  # noqa
         actual_grad, expected_grad,
         decimal=5, err_msg="Gradient of CrossEntropyLoss is incorrect",
     )
-
