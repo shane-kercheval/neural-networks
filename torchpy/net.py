@@ -193,3 +193,93 @@ class Linear(Module):
         optimizer.update(self.weights, self.weight_grad)
         optimizer.update(self.biases, self.bias_grad)
         self._zero_grad()
+
+
+class ReLU(Module):
+    """ReLU activation function."""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """Forward pass of ReLU."""
+        output = np.maximum(0, x)
+        if Module.training:
+            self.output = output
+        return output
+
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        """
+        Backward pass of ReLU.
+
+        The ReLU function is defined as:
+
+            `f(x) = max(0, x)`
+
+        The derivative of ReLU:
+
+            `f'(x) = 1 if x > 0 else 0`
+
+        Therefore:
+            `∂L/∂x = ∂L/∂f * ∂f/∂x`, where
+                - `∂f/∂x` = f'(x)
+                - `∂L/∂f` is the gradient of the loss function with respect to the output of this
+                    layer, which is passed as grad_output.
+
+        Args:
+            grad_output:
+                (∂L/∂y) Gradient of the loss with respect to the output of this layer. Calculated
+                in the next layer and passed to this layer during backpropagation.
+        """
+        assert self.output is not None, "Forward pass not called before backward pass"
+        return grad_output * (self.output > 0)  # Element-wise multiplication
+
+
+class Softmax(Module):
+    """Softmax activation function."""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """
+        Forward pass of Softmax.
+
+        Uses `x - max(x)` in exponentiation which is a common enhancement to improve numerical
+        stability during computation. If the elements of x are very large or very small,
+        exponentiating them can lead to numerical issues. Exponentiating large numbers can lead to
+        extremely large outputs, which can cause computational issues due to overflow (numbers too
+        large to represent in a floating-point format). Exponentiating very negative numbers can
+        result in values that are very close to zero, leading to underflow (numbers too small to
+        represent accurately in a floating-point format).
+        """
+        exp_x = np.exp(x - np.max(x, axis=1, keepdims=True))
+        output = exp_x / exp_x.sum(axis=1, keepdims=True)
+        if Module.training:
+            self.output = output
+        return output
+
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        """
+        Backward pass of Softmax.
+
+        The Softmax function for a vector z is defined as (the subtraction of max(x) in the
+        exponentiation in the forward pass does not affect the derivative):
+
+            `S(z)_i = exp(z_i) / sum(exp(z_j))`
+
+        The derivative of Softmax is:
+
+            `∂S_i/∂z_j = S_i * (δ_ij - S_j)`, where `δ_ij` is the Kronecker delta,
+                which is 1 if i = j and 0 otherwise.
+
+        For a given ∂L/∂S, where L is the loss function:
+
+            ∂L/∂z_j = sum(∂L/∂S_i * ∂S_i/∂z_j)
+            = sum(∂L/∂S_i * S_i * (δ_ij - S_j))
+            = S_j * ( ∂L/∂S_j - sum(S_i * ∂L/∂S_i) )
+
+            where ∂L/∂S_j is the gradient of the loss with respect to the output i.e. grad_output.
+
+        Args:
+            grad_output:
+                (∂L/∂y) Gradient of the loss with respect to the output of this layer. Calculated
+                in the next layer and passed to this layer during backpropagation.
+        """
+        assert self.output is not None, "Forward pass not called before backward pass"
+        s = self.output
+        return s * (grad_output - np.sum(grad_output * s, axis=1, keepdims=True))
