@@ -1,8 +1,9 @@
 """TODO."""
 from abc import ABC, abstractmethod
-from typing import List, Tuple, ClassVar
+from typing import ClassVar
 from contextlib import ContextDecorator
 import numpy as np
+from numpy.random import default_rng
 
 class Module(ABC):
     """Base class for all neural network modules."""
@@ -67,7 +68,6 @@ class Module(ABC):
         """
         raise NotImplementedError
 
-
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
         Allows the module to be called like a function and directly use the forward pass.
@@ -97,9 +97,12 @@ class Linear(Module):
         # practice for layers followed by ReLU activations, as it helps in maintaining a balance
         # in the variance of activations across layers. If you plan to use other types of
         # activations, consider adjusting the initialization accordingly.
-        self.weights = np.random.randn(in_features, out_features) * np.sqrt(2. / in_features)
+        rng = default_rng()
+        self.weights = rng.standard_normal((in_features, out_features)) * np.sqrt(2. / in_features)
         self.biases = np.zeros((1, out_features))
-        self.params = [self.weights, self.biases]
+        self.weight_grads = None
+        self.bias_grads = None
+        # self.params = [self.weights, self.biases]
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         """
@@ -111,7 +114,8 @@ class Linear(Module):
         Returns:
             np.ndarray: Output of the layer of shape (batch_size, out_features).
         """
-        self.x = x  # Cache the input for backward pass
+        if Module.training:
+            self.x = x  # Cache the input for backward pass
         return x @ self.weights + self.biases
 
     def backward(self, grad_output: np.ndarray) -> np.ndarray:
@@ -119,30 +123,50 @@ class Linear(Module):
         Backward pass of the Linear layer. Returns the gradient with respect to the input.
 
         Args:
-            grad_output (np.ndarray): Gradient of the loss with respect to the output of this layer.
+            grad_output:
+                (∂L/∂y) Gradient of the loss with respect to the output of this layer. Calculated
+                in the next layer and passed to this layer during backpropagation.
         """
         assert Module.training
         assert self.x.shape[0] == grad_output.shape[0], "Mismatch in batch size"
-        assert self.x.shape[1] == self.weights.shape[0], "Input features do not match weights configuration"
-        # The goal of the backward pass is to compute the gradient of the loss with respect to
-        # the input (dx), weights (dW), and biases (db).
-        # The gradients of the loss with respect to the weights and biases are computed using the
-        # dL_dW = ∂L/∂W = ∂L/∂z * ∂z/∂W
-        # where z is the output of this layer
-        # and ∂L/∂z is the gradient of the loss with respect to the output of the layer, which is
-        # passed as an argument to this method (grad_output). In other words it's the gradient
-        # flowing into this layer that was computed during the backpropagation of the previous
-        # compution (subsequent layer since we are flowing backward).
-        # ∂z/∂W is the gradient of the output of this layer with respect to the weights
-        # Again, z is the equation for this layer (i.e. the forward pass) which is z = x*W + b
-        # and so ∂z/∂W = x because we treat x and b as constants when computing the derivative
-        # and the derivative of W with respect to W is 1 and the derivative of b (which is a
-        # constant) is 0 so ∂z/∂W = x*1 + 0 = x.
-        # ∂L/∂z = grad_output
-        # ∂z/∂W = x
-        # ∂L/∂W = grad_output * x
+        assert self.x.shape[1] == self.weights.shape[0], "Input features do not match weights configuration"  # noqa
+
+        # the linear layer is defined by: output=input*weights + biases
+        # Mathematically, it's: y=xW+b
+        # x is the input matrix with shape (batch size, in_features)
+        # W is the weight matrix with shape (in_features, out_features)
+        # b is the bias vector with shape (1, out_features)
+        # y is the output matrix with shape (batch size, out_features)
+
+        # Our goal is to compute the gradients of the loss function with respect to all of the
+        # parameters of the layer, and to propagate the gradients of the loss function backward
+        # to previous layers in the network:
+        # ∂L/∂W: The gradient of the loss function with respect to the weights
+        # ∂L/∂b: gradient of the loss function with respect to the biases
+        # ∂L/∂x: The gradient of the loss function with respect to the input, which is necessary to
+        # propagate the gradient back to previous layers.
+        # ∂L/∂y: grad_output: the gradient of the loss function with respect to the output y
+
+        # ∂L/∂W = ∂L/∂y * ∂y/∂W, where ∂L/∂y is grad_output
+        # ∂y/∂W (the partial derivative of y with respect to W; meaning we treat all other
+        # variables (the bias) as constants) is `x`, because y = xW + b and the derivative of W
+        # b is a constant (which is 0) and the derivative of W with respect to W is 1, so the
+        # derivative of y with respect to W is x.
+        # ∂L/∂W = ∂L/∂y * ∂y/∂W = grad_output * x, but we need to align the dimensions correctly
+        # for matrix multiplication, so we transpose x to get the correct shape.
+        # dim of self.x.T = (in_features, batch_size),
+        # dim of grad_output = (batch_size, out_features)
+        # so the matrix multiplication is (in_features, batch_size) @ (batch_size, out_features)
         self.weight_grads = self.x.T @ grad_output
+        # similarly, ∂L/∂b = ∂L/∂y * ∂y/∂b, where ∂L/∂y is grad_output
+        # ∂y/∂b is 1, because y = xW + b and W is treated as a constant, so that becomes 0 and
+        # the derivative of b with respect to b is 1, so the derivative of y with respect to b is
+        # 1.
+        # So ∂L/∂b = ∂L/∂y * ∂y/∂b = grad_output * 1 = grad_output
         self.bias_grads = np.sum(grad_output, axis=0, keepdims=True)
+        # ∂L/∂x = ∂L/∂y * ∂y/∂x, where ∂L/∂y is grad_output
+        # ∂y/∂x is W, because y = xW + b where b and W are treated as constants, so the derivative
+        # of y with respect to x is W.
         return grad_output @ self.weights.T  # gradient with respect to input (x)
 
     def step(self, optimizer: callable) -> None:
