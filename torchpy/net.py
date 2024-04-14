@@ -332,6 +332,11 @@ class CrossEntropyLoss(Module):
     efficiency.
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.logits = None
+        self.targets = None
+
     def forward(self, logits: np.ndarray, targets: np.ndarray) -> float:
         """
         Computes the cross-entropy loss from logits and targets directly.
@@ -450,88 +455,6 @@ class Softmax(Module):
         assert self.output is not None, "Forward pass not called before backward pass"
         s = self.output
         return s * (grad_output - np.sum(grad_output * s, axis=1, keepdims=True))
-
-
-# class CrossEntropyLoss(Module):
-#     """
-#     CrossEntropyLoss implements the categorical cross-entropy loss, which is commonly used as the
-#     loss function for multi-class classification problems. This loss function compares the
-#     predicted probability distribution (output from the softmax function) with the target value,
-#     which contain the class labels.
-#     """
-
-#     def __init__(self) -> None:
-#         super().__init__()
-#         self.predictions = None
-#         self.targets = None
-
-#     def forward(self, predictions: np.ndarray, targets: np.ndarray) -> float:
-#         """
-#         Forward pass for computing the cross-entropy loss.
-
-#         Args:
-#             predictions (np.ndarray):
-#                 Probabilities output by the model for each class, typically after applying softmax.
-#             targets (np.ndarray):
-#                 Array of integers where each element is a class index which is the ground truth
-#                 label for the corresponding input.
-#         """
-#         if Module.training:
-#             self.predictions = predictions
-#             self.targets = targets
-#         # avoid log(0) which leads to -inf
-#         clipped_probs = np.clip(predictions[np.arange(len(targets)), targets], 1e-15, 1.0)
-#         log_probs = -np.log(clipped_probs)
-#         return np.mean(log_probs)
-
-#     def backward(self) -> np.ndarray:
-#         """
-#         Backward pass for computing the gradient of the cross-entropy loss with respect to the
-#         input predictions.
-
-#         Cross-Entropy Loss for a single example is defined as:
-#             L = -sum(y_i * log(p_i))
-#             where y_i is the target probability for class i, and p_i is the predicted probability.
-
-#         For categorical cross-entropy, y_i is 1 for the correct class and 0 otherwise, so:
-#             L = -log(p_c)
-#             where p_c is the predicted probability of the correct class.
-
-#         The derivative of L with respect to the predicted probabilities p_k is:
-#             ∂L/∂p_k = -y_k / p_k
-
-#         In the case of hard targets, where y_k is either 0 or 1, this simplifies to:
-#             ∂L/∂p_k = -1 / p_c for the correct class
-#             ∂L/∂p_k = 0 for all other classes
-#         """
-#         assert Module.training
-#         assert self.predictions is not None, "Forward pass not called before backward pass"
-#         assert self.targets is not None, "Forward pass not called before backward pass"
-
-#         grad_input = self.predictions.copy()
-#         grad_input[np.arange(len(self.targets)), self.targets] -= 1
-#         grad_input /= len(self.targets)
-
-#         grad_input = self.predictions.copy()
-#         grad_input[np.arange(len(self.targets)), self.targets] -= 1
-#         grad_input /= len(self.targets)
-#         # avoid reusing the gradients in the next iteration
-#         self.predictions = None
-#         self.targets = None
-#         return grad_input
-
-#     def __call__(self, predictions: np.ndarray, targets: np.ndarray) -> float:
-#         """
-#         Forward pass for computing the cross-entropy loss.
-
-#         Args:
-#             predictions (np.ndarray):
-#                 Probabilities output by the model for each class, typically after applying softmax.
-#             targets (np.ndarray):
-#                 Array of integers where each element is a class index which is the ground truth
-#                 label for the corresponding input.
-#         """
-#         return self.forward(predictions, targets)
 
 
 class Sequential(Module):
