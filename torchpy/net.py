@@ -171,21 +171,23 @@ class Linear(TrainableParamsModule):
             self,
             in_features: int,
             out_features: int,
-            weight_init_scale: callable = he_init_scale):
+            weight_init_scale: callable = he_init_scale,
+            seed: int = 42):
         """
         Initialize a Linear (fully connected) layer.
 
         Args:
-            in_features (int): Number of input features.
-            out_features (int): Number of output features.
-            weight_init_scale (callable): Function to calculate the scaling factor for the weights.
+            in_features: Number of input features.
+            out_features: Number of output features.
+            weight_init_scale: Function to calculate the scaling factor for the weights.
+            seed: Random seed for reproducibility.
         """
         super().__init__()
         # TODO initialize the weights using He initialization (np.sqrt(2. / in_features)) is good
         # practice for layers followed by ReLU activations, as it helps in maintaining a balance
         # in the variance of activations across layers. If you plan to use other types of
         # activations, consider adjusting the initialization accordingly.
-        rng = default_rng()
+        rng = default_rng(seed)
         init_scale = weight_init_scale(in_features, out_features)
         self.weights = rng.normal(loc=0, scale=init_scale, size=(in_features, out_features))
         self.biases = np.zeros((1, out_features))
@@ -324,6 +326,78 @@ class ReLU(Module):
         return grad_output * (self.output > 0)  # Element-wise multiplication
 
 
+class CrossEntropyLoss(Module):
+    """
+    Combines Softmax and Cross-Entropy loss into one single class for stability and
+    efficiency.
+    """
+
+    def forward(self, logits: np.ndarray, targets: np.ndarray) -> float:
+        """
+        Computes the cross-entropy loss from logits and targets directly.
+
+        Args:
+            logits: Logits array (before softmax).
+            targets: Array of target class indices.
+
+        Returns:
+            float: Computed cross-entropy loss.
+        """
+        if Module.training:
+            self.logits = logits
+            self.targets = targets
+
+        # Compute the softmax probabilities
+        exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
+        probabilities = exp_logits / exp_logits.sum(axis=1, keepdims=True)
+        clipped_probs = np.clip(probabilities[np.arange(len(targets)), targets], 1e-15, 1.0)
+        log_probs = -np.log(clipped_probs)
+        return np.mean(log_probs)
+
+    def backward(self) -> np.ndarray:
+        """Computes and returns the gradient of the loss with respect to the logits."""
+        assert Module.training
+        assert self.logits is not None
+        assert self.targets is not None, "Forward pass not called before backward."
+
+        # Calculate the softmax probabilities (again)
+        exp_logits = np.exp(self.logits - np.max(self.logits, axis=1, keepdims=True))
+        softmax_probs = exp_logits / exp_logits.sum(axis=1, keepdims=True)
+        # Initialize gradient of logits
+        grad_logits = softmax_probs.copy()
+        # Subtract 1 from the probabilities of the correct classes
+        # This step directly corresponds to the derivative of the loss function
+        # with respect to each class probability:
+        # ∂L/∂p_k = p_k - y_k, where y_k is 1 for the correct class and 0 otherwise.
+        # Since softmax_probs contains p_k for all k, and we need to subtract 1 for the correct class,
+        # this operation modifies the gradient correctly only for the indices of the correct classes.
+        grad_logits[np.arange(len(self.targets)), self.targets] -= 1
+
+        # Average the gradients over the batch
+        # The division by the number of examples handles the mean operation in the loss calculation,
+        # as the loss is the average over all examples in the batch.
+        grad_logits /= len(self.targets)
+
+        # Avoid reusing the gradients in the next iteration
+        self.logits = None
+        self.targets = None
+        return grad_logits
+
+    def __call__(self, logits: np.ndarray, targets: np.ndarray) -> float:
+        """
+        Forward pass for computing the cross-entropy loss.
+
+        Args:
+            logits (np.ndarray):
+                Logits of the model, which are the raw, unnormalized predictions from the model
+                (before softmax is applied).
+            targets (np.ndarray):
+                Array of integers where each element is a class index which is the ground truth
+                label for the corresponding input.
+        """
+        return self.forward(logits, targets)
+
+
 class Softmax(Module):
     """Softmax activation function."""
 
@@ -378,99 +452,104 @@ class Softmax(Module):
         return s * (grad_output - np.sum(grad_output * s, axis=1, keepdims=True))
 
 
-class CrossEntropyLoss(Module):
-    """
-    CrossEntropyLoss implements the categorical cross-entropy loss, which is commonly used as the
-    loss function for multi-class classification problems. This loss function compares the
-    predicted probability distribution (output from the softmax function) with the target value,
-    which contain the class labels.
-    """
+# class CrossEntropyLoss(Module):
+#     """
+#     CrossEntropyLoss implements the categorical cross-entropy loss, which is commonly used as the
+#     loss function for multi-class classification problems. This loss function compares the
+#     predicted probability distribution (output from the softmax function) with the target value,
+#     which contain the class labels.
+#     """
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.predictions = None
-        self.targets = None
+#     def __init__(self) -> None:
+#         super().__init__()
+#         self.predictions = None
+#         self.targets = None
 
-    def forward(self, predictions: np.ndarray, targets: np.ndarray) -> float:
-        """
-        Forward pass for computing the cross-entropy loss.
+#     def forward(self, predictions: np.ndarray, targets: np.ndarray) -> float:
+#         """
+#         Forward pass for computing the cross-entropy loss.
 
-        Args:
-            predictions (np.ndarray):
-                Probabilities output by the model for each class, typically after applying softmax.
-            targets (np.ndarray):
-                Array of integers where each element is a class index which is the ground truth
-                label for the corresponding input.
-        """
-        if Module.training:
-            self.predictions = predictions
-            self.targets = targets
-        # avoid log(0) which leads to -inf
-        clipped_probs = np.clip(predictions[np.arange(len(targets)), targets], 1e-15, 1.0)
-        log_probs = -np.log(clipped_probs)
-        return np.mean(log_probs)
+#         Args:
+#             predictions (np.ndarray):
+#                 Probabilities output by the model for each class, typically after applying softmax.
+#             targets (np.ndarray):
+#                 Array of integers where each element is a class index which is the ground truth
+#                 label for the corresponding input.
+#         """
+#         if Module.training:
+#             self.predictions = predictions
+#             self.targets = targets
+#         # avoid log(0) which leads to -inf
+#         clipped_probs = np.clip(predictions[np.arange(len(targets)), targets], 1e-15, 1.0)
+#         log_probs = -np.log(clipped_probs)
+#         return np.mean(log_probs)
 
-    def backward(self) -> np.ndarray:
-        """
-        Backward pass for computing the gradient of the cross-entropy loss with respect to the
-        input predictions.
+#     def backward(self) -> np.ndarray:
+#         """
+#         Backward pass for computing the gradient of the cross-entropy loss with respect to the
+#         input predictions.
 
-        Cross-Entropy Loss for a single example is defined as:
-            L = -sum(y_i * log(p_i))
-            where y_i is the target probability for class i, and p_i is the predicted probability.
+#         Cross-Entropy Loss for a single example is defined as:
+#             L = -sum(y_i * log(p_i))
+#             where y_i is the target probability for class i, and p_i is the predicted probability.
 
-        For categorical cross-entropy, y_i is 1 for the correct class and 0 otherwise, so:
-            L = -log(p_c)
-            where p_c is the predicted probability of the correct class.
+#         For categorical cross-entropy, y_i is 1 for the correct class and 0 otherwise, so:
+#             L = -log(p_c)
+#             where p_c is the predicted probability of the correct class.
 
-        The derivative of L with respect to the predicted probabilities p_k is:
-            ∂L/∂p_k = -y_k / p_k
+#         The derivative of L with respect to the predicted probabilities p_k is:
+#             ∂L/∂p_k = -y_k / p_k
 
-        In the case of hard targets, where y_k is either 0 or 1, this simplifies to:
-            ∂L/∂p_k = -1 / p_c for the correct class
-            ∂L/∂p_k = 0 for all other classes
-        """
-        assert Module.training
-        assert self.predictions is not None, "Forward pass not called before backward pass"
-        assert self.targets is not None, "Forward pass not called before backward pass"
-        grad_input = self.predictions.copy()
-        grad_input[np.arange(len(self.targets)), self.targets] -= 1
-        grad_input /= len(self.targets)
-        # avoid reusing the gradients in the next iteration
-        self.predictions = None
-        self.targets = None
-        return grad_input
+#         In the case of hard targets, where y_k is either 0 or 1, this simplifies to:
+#             ∂L/∂p_k = -1 / p_c for the correct class
+#             ∂L/∂p_k = 0 for all other classes
+#         """
+#         assert Module.training
+#         assert self.predictions is not None, "Forward pass not called before backward pass"
+#         assert self.targets is not None, "Forward pass not called before backward pass"
 
-    def __call__(self, predictions: np.ndarray, targets: np.ndarray) -> float:
-        """
-        Forward pass for computing the cross-entropy loss.
+#         grad_input = self.predictions.copy()
+#         grad_input[np.arange(len(self.targets)), self.targets] -= 1
+#         grad_input /= len(self.targets)
 
-        Args:
-            predictions (np.ndarray):
-                Probabilities output by the model for each class, typically after applying softmax.
-            targets (np.ndarray):
-                Array of integers where each element is a class index which is the ground truth
-                label for the corresponding input.
-        """
-        return self.forward(predictions, targets)
+#         grad_input = self.predictions.copy()
+#         grad_input[np.arange(len(self.targets)), self.targets] -= 1
+#         grad_input /= len(self.targets)
+#         # avoid reusing the gradients in the next iteration
+#         self.predictions = None
+#         self.targets = None
+#         return grad_input
+
+#     def __call__(self, predictions: np.ndarray, targets: np.ndarray) -> float:
+#         """
+#         Forward pass for computing the cross-entropy loss.
+
+#         Args:
+#             predictions (np.ndarray):
+#                 Probabilities output by the model for each class, typically after applying softmax.
+#             targets (np.ndarray):
+#                 Array of integers where each element is a class index which is the ground truth
+#                 label for the corresponding input.
+#         """
+#         return self.forward(predictions, targets)
 
 
 class Sequential(Module):
     """Sequential container to stack Neural Network modules."""
 
-    def __init__(self, modules: list[Module]):
+    def __init__(self, layers: list[Module]):
         super().__init__()
-        self.modules = modules
+        self.layers = layers
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         """Forward pass of the Sequential container."""
-        for module in self.modules:
+        for module in self.layers:
             x = module(x)
         return x
 
     def backward(self, grad_output: np.ndarray) -> np.ndarray:
         """Backward pass of the Sequential container."""
-        for module in reversed(self.modules):
+        for module in reversed(self.layers):
             grad_output = module.backward(grad_output)
         return grad_output
 
@@ -479,7 +558,7 @@ class Sequential(Module):
         Update the parameters of the modules using the gradient computed during
         backpropagation.
         """
-        for module in self.modules:
+        for module in self.layers:
             module.step(optimizer)
 
 

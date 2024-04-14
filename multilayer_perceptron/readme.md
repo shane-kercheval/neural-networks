@@ -11,9 +11,9 @@
     - Test accuracy: 0.947
 - Numpy MLP training time (via numpy_mlp_mnist.ipynb)
     - CPU Apple M2 Max: `24.10 seconds`
-    - Test loss: 0.16944535764123794
-    - Test accuracy: 0.952
+    - Test loss: 0.14705961978974613
+    - Test accuracy: 0.9591428571428572
 - `torchpy` MLP training time (via torchpy_mlp_mnist.ipynb)
     - CPU Apple M2 Max: `25.76 seconds`
-    - Test loss:  0.26473603916825217
-    - Test accuracy: 0.934
+    - Test loss: 0.1470596197897461
+    - Test accuracy: 0.959
