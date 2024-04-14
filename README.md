@@ -1,5 +1,8 @@
 # neural-networks
-Repository to learn about neural networks.
+
+- Repository to learn about neural networks.
+- `torchcpp` folder contains lightweight C++ that mimic pytorch; meant for learning purposes, not production.
+
 
 
 
