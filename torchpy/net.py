@@ -1,3 +1,4 @@
+
 """Includes building blocks for neural networks."""
 from abc import ABC, abstractmethod
 from typing import ClassVar
@@ -69,6 +70,18 @@ class Module(ABC):
         """
         raise NotImplementedError
 
+    def step(self, optimizer: callable) -> None:
+        """
+        Update the parameters of the module using the gradient computed during
+        backpropagation and the optimizer provided.
+
+        Only applicable to modules that require gradient computation (GradientModule) but needs to
+        be defined in the base class to avoid checking the type of module in the training loop.
+
+        Args:
+            optimizer (callable): The optimizer to use for updating the weights and biases.
+        """
+
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
         Allows the module to be called like a function and directly use the forward pass.
@@ -82,16 +95,90 @@ class Module(ABC):
         return self.forward(x)
 
 
-class Linear(Module):
+class TrainableParamsModule(Module):
+    """
+    Base class for modules that update their parameters (e.g. weights/biases) via
+    backpropegation.
+    """
+
+    @abstractmethod
+    def _zero_grad(self) -> None:
+        """Clear the gradient of the module."""
+
+    @abstractmethod
+    def _step(self, optimizer: callable) -> None:
+        """
+        Update the weights and biases of the module using the gradient computed during
+        backpropagation and the optimizer provided.
+
+        Args:
+            optimizer (callable): The optimizer to use for updating the weights and biases.
+        """
+
+    def step(self, optimizer: callable) -> None:
+        """
+        Update the weights and biases of the module using the gradient computed during
+        backpropagation and the optimizer provided.
+
+        Args:
+            optimizer (callable): The optimizer to use for updating the weights and biases.
+        """
+        assert Module.training
+        self._step(optimizer)
+        self._zero_grad()
+
+
+def he_init_scale(in_features: int, _: int | None = None) -> float:
+    """
+    He initialization is a way to initialize the weights of a neural network in a way that
+    prevents the signal from vanishing or exploding as it passes through the network.
+
+    The factor is calculated as sqrt(2. / in_features) for ReLU activations, and sqrt(1. /
+    in_features) for other activations.
+
+    Args:
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
+
+    Returns:
+        float: The scaling factor for the weights.
+    """
+    return np.sqrt(2. / in_features)
+
+
+def glorot_init_scale(in_features: int, out_features: int) -> float:
+    """
+    Glorot initialization (also known as Xavier initialization) is a way to initialize the weights
+    of a neural network in a way that prevents the signal from vanishing or exploding as it passes
+    through the network.
+
+    The factor is calculated as sqrt(6. / (in_features + out_features)).
+
+    Args:
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
+
+    Returns:
+        float: The scaling factor for the weights.
+    """
+    return np.sqrt(6. / (in_features + out_features))
+
+
+class Linear(TrainableParamsModule):
     """Linear (fully connected) layer."""
 
-    def __init__(self, in_features: int, out_features: int):
+    def __init__(
+            self,
+            in_features: int,
+            out_features: int,
+            weight_init_scale: callable = he_init_scale):
         """
         Initialize a Linear (fully connected) layer.
 
         Args:
             in_features (int): Number of input features.
             out_features (int): Number of output features.
+            weight_init_scale (callable): Function to calculate the scaling factor for the weights.
         """
         super().__init__()
         # TODO initialize the weights using He initialization (np.sqrt(2. / in_features)) is good
@@ -99,7 +186,8 @@ class Linear(Module):
         # in the variance of activations across layers. If you plan to use other types of
         # activations, consider adjusting the initialization accordingly.
         rng = default_rng()
-        self.weights = rng.standard_normal((in_features, out_features)) * np.sqrt(2. / in_features)
+        init_scale = weight_init_scale(in_features, out_features)
+        self.weights = rng.normal(loc=0, scale=init_scale, size=(in_features, out_features))
         self.biases = np.zeros((1, out_features))
         self._zero_grad()
 
@@ -107,6 +195,20 @@ class Linear(Module):
         """Clear the gradient of the layer."""
         self.weight_grad = None
         self.bias_grad = None
+
+    def _step(self, optimizer: callable) -> None:
+        """
+        Update the weights and biases of the module using the gradient computed during
+        backpropagation and the optimizer provided.
+
+        Args:
+            optimizer (callable): The optimizer to use for updating the weights and biases.
+        """
+        assert self.weight_grad is not None
+        assert self.bias_grad is not None
+        optimizer(self.weights, self.weight_grad)
+        optimizer(self.biases, self.bias_grad)
+        self._zero_grad()
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         """
@@ -177,21 +279,11 @@ class Linear(Module):
         """
         assert Module.training
         assert self.x.shape[0] == grad_output.shape[0], "Mismatch in batch size"
-        assert self.x.shape[1] == self.weights.shape[0], "Input features do not match weights configuration"  # noqa
+        assert self.x.shape[1] == self.weights.shape[0], \
+            "Input features do not match weights configuration"
         self.weight_grad = self.x.T @ grad_output
         self.bias_grad = np.sum(grad_output, axis=0, keepdims=True)
         return grad_output @ self.weights.T  # gradient with respect to input (x)
-
-    def step(self, optimizer: callable) -> None:
-        """
-        Update the weights and biases of the layer using the gradient computed during
-        backpropagation and the optimizer provided.
-        """
-        assert self.weight_grad is not None
-        assert self.bias_grad is not None
-        optimizer.update(self.weights, self.weight_grad)
-        optimizer.update(self.biases, self.bias_grad)
-        self._zero_grad()
 
 
 class ReLU(Module):
@@ -293,6 +385,7 @@ class CrossEntropyLoss(Module):
     predicted probability distribution (output from the softmax function) with the target value,
     which contain the class labels.
     """
+
     def __init__(self) -> None:
         super().__init__()
         self.predictions = None
@@ -360,3 +453,47 @@ class CrossEntropyLoss(Module):
                 label for the corresponding input.
         """
         return self.forward(predictions, targets)
+
+
+class Sequential(Module):
+    """Sequential container to stack Neural Network modules."""
+
+    def __init__(self, modules: list[Module]):
+        super().__init__()
+        self.modules = modules
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """Forward pass of the Sequential container."""
+        for module in self.modules:
+            x = module(x)
+        return x
+
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        """Backward pass of the Sequential container."""
+        for module in reversed(self.modules):
+            grad_output = module.backward(grad_output)
+        return grad_output
+
+    def step(self, optimizer: callable) -> None:
+        """
+        Update the parameters of the modules using the gradient computed during
+        backpropagation.
+        """
+        for module in self.modules:
+            module.step(optimizer)
+
+
+class SGD:
+    """Stochastic Gradient Descent optimizer."""
+
+    def __init__(self, learning_rate: float):
+        """
+        Args:
+            learning_rate: The learning rate (multiplier) to use for the optimizer.
+        """
+        self.learning_rate = learning_rate
+
+    def __call__(self, parameters: np.ndarray, grads: np.ndarray) -> None:
+        """Update the parameters using the gradients and learning rate."""
+        parameters -= self.learning_rate * grads
+
