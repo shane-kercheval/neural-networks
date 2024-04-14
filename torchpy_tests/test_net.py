@@ -4,13 +4,83 @@ import pytest
 from torchpy import net
 
 
-@pytest.fixture()
-def softmax():  # noqa
-    net.Module.training = True
-    return net.Softmax()
 
+def test_relu_forward_positive():   #noqa
+    """Test the ReLU forward function with positive and zero inputs."""
+    inputs = np.array([[1.0, -1.0, 0.0], [2.0, -2.0, 0.0]])
+    expected_outputs = np.array([[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]])
+    actual_outputs = net.ReLU()(inputs)
+    np.testing.assert_array_equal(
+        actual_outputs, expected_outputs,
+        err_msg="ReLU forward failed for mixed inputs",
+    )
 
-def test_softmax_forward_normal(softmax):  # noqa
+def test_relu_forward_all_negative():   #noqa
+    """Test the ReLU forward function with all negative inputs."""
+    inputs = np.array([[-1.0, -0.5, -2.0]])
+    expected_outputs = np.zeros_like(inputs)
+    actual_outputs = net.ReLU()(inputs)
+    np.testing.assert_array_equal(
+        actual_outputs, expected_outputs,
+        err_msg="ReLU forward failed for all negative inputs",
+    )
+
+def test_relu_backward():  # noqa
+    """
+    Test the ReLU backward function.
+
+    This test verifies that the gradient passed through ReLU during the backward pass is
+    correctly gated by the activation from the forward pass. The ReLU derivative outputs 1
+    where the input is positive and 0 otherwise, thus the backward pass should propagate
+    gradients only through those elements that had a positive input in the forward pass.
+    """
+    # Input array for testing, which includes positive, negative, and zero values.
+    inputs = np.array([
+        [2.0, -3.0, 0.0],
+        [1.5, 0.0, -2.0],
+    ])
+    relu = net.ReLU()
+    with net.Module.training_mode():
+        relu.forward(inputs)
+        # Gradients received from the next layer in the network (or from the loss function).
+        # These are hypothetical values to test the gating behavior of ReLU.
+        grad_output = np.array([
+            [5.0, 2.0, 3.0],
+            [4.0, 1.0, 2.0],
+        ])
+        actual_grad = relu.backward(grad_output)
+    # ReLU derivative is 1 for positive inputs and 0 for non-positive inputs (negative or zero).
+    # Thus, gradients should only pass through where the inputs were positive.
+    # For [2.0, -3.0, 0.0], the gradient [5.0, 2.0, 3.0] should be gated to [5.0, 0.0, 0.0].
+    # For [1.5, 0.0, -2.0], the gradient [4.0, 1.0, 2.0] should be gated to [4.0, 0.0, 0.0].
+    expected_grad = np.array([
+        [5.0, 0.0, 0.0],
+        [4.0, 0.0, 0.0],
+    ])
+    # Check if the computed gradients match the expected values.
+    np.testing.assert_array_equal(actual_grad, expected_grad, err_msg="ReLU backward failed")
+
+def test_relu_no_training_mode():   #noqa
+    """Test that the ReLU forward and backward functions handle non-training mode."""
+    inputs = np.array([[1.0, -1.0, 0.0], [2.0, -2.0, 0.0]])
+    relu = net.ReLU()
+    relu.forward(inputs)  # This should not cache output
+
+    grad_output = np.array([[1.0, 2.0, 3.0], [0.5, 0.0, 1.0]])
+    relu.output = 1  # Mock output to ensure error is due to training mode
+    with pytest.raises(AssertionError):
+        relu.backward(grad_output)
+
+@pytest.mark.parametrize(("input_array", "expected_output"), [
+    (np.array([[1, -1, 0], [2, -2, 0]]), np.array([[1, 0, 0], [2, 0, 0]])),
+    (np.array([[-1, -2, -3], [0, 0, 0]]), np.array([[0, 0, 0], [0, 0, 0]])),
+])
+def test_relu_forward_varied_inputs(input_array, expected_output):   #noqa
+    """Test the ReLU forward function with varied inputs using parametrization."""
+    output = net.ReLU()(input_array)
+    np.testing.assert_array_equal(output, expected_output)
+
+def test_softmax_forward_normal():  # noqa
     """Test the softmax forward function with normal values."""
     inputs = np.array([
         [1.0, 2.0, 3.0],
@@ -18,34 +88,36 @@ def test_softmax_forward_normal(softmax):  # noqa
     ])
     expected_outputs = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
     expected_outputs /= expected_outputs.sum(axis=1, keepdims=True)
-    outputs = softmax.forward(inputs)
+    outputs = net.Softmax()(inputs)
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
 
-def test_softmax_forward_large_values(softmax):  # noqa
+def test_softmax_forward_large_values():  # noqa
     """Test softmax with large values to check for stability."""
     inputs = np.array([[1000, 1001, 1002],
                        [1000, 1001, 1002]])
-    outputs = softmax.forward(inputs)
+    outputs = net.Softmax()(inputs)
     expected_outputs = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
     expected_outputs /= expected_outputs.sum(axis=1, keepdims=True)
 
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
 
-def test_softmax_forward_identical_values(softmax):  # noqa
+def test_softmax_forward_identical_values():  # noqa
     """Test softmax with identical values."""
     inputs = np.array([[1000, 1000, 1000],
                        [1000, 1000, 1000]])
-    outputs = softmax.forward(inputs)
+    outputs = net.Softmax()(inputs)
     expected_outputs = np.ones(inputs.shape) / inputs.shape[1]
 
     np.testing.assert_array_almost_equal(outputs, expected_outputs)
 
-def test_softmax_backward(softmax):  # noqa
+def test_softmax_backward():  # noqa
     """Test the softmax backward function."""
     logits = np.array([[1.0, 2.0, 3.0]])
-    predictions = softmax.forward(logits)
-    grad_output = np.array([[0.1, 0.3, 0.6]])
-    grad = softmax.backward(grad_output)
+    softmax = net.Softmax()
+    with net.Module.training_mode():
+        predictions = softmax.forward(logits)
+        grad_output = np.array([[0.1, 0.3, 0.6]])
+        grad = softmax.backward(grad_output)
 
     # Calculate the expected gradient using the formula derived for softmax derivatives
     # ∂L/∂z_j = S_j * ( ∂L/∂S_j - sum(S_i * ∂L/∂S_i) )
