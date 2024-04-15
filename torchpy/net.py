@@ -604,7 +604,6 @@ class BatchNorm(TrainableParamsModule):
             + (dvar * 2 * x_centered / num_samples) \
             + (dmean / num_samples)
 
-
     def _zero_grad(self) -> None:
         """Clear the gradient of the layer."""
         self.gamma_grad = None
