@@ -63,7 +63,7 @@ class Module(ABC):
         Perform the backward pass of the module, calculating gradient with respect to input.
 
         Args:
-            grad_output (np.ndarray): Gradient of the loss with respect to the output of this module.
+            grad_output: Gradient of the loss with respect to the output of this module.
 
         Returns:
             np.ndarray: Gradient of the loss with respect to the input of this module.
@@ -87,7 +87,7 @@ class Module(ABC):
         Allows the module to be called like a function and directly use the forward pass.
 
         Args:
-            x (np.ndarray): Input data.
+            x: Input data.
 
         Returns:
             np.ndarray: Output of the module.
@@ -374,13 +374,14 @@ class CrossEntropyLoss(Module):
         # This step directly corresponds to the derivative of the loss function
         # with respect to each class probability:
         # ∂L/∂p_k = p_k - y_k, where y_k is 1 for the correct class and 0 otherwise.
-        # Since softmax_probs contains p_k for all k, and we need to subtract 1 for the correct class,
-        # this operation modifies the gradient correctly only for the indices of the correct classes.
+        # Since softmax_probs contains p_k for all k, and we need to subtract 1 for the correct
+        # class; this operation modifies the gradient correctly only for the indices of the correct
+        # classes.
         grad_logits[np.arange(len(self.targets)), self.targets] -= 1
 
         # Average the gradients over the batch
-        # The division by the number of examples handles the mean operation in the loss calculation,
-        # as the loss is the average over all examples in the batch.
+        # The division by the number of examples handles the mean operation in the loss
+        # calculation, as the loss is the average over all examples in the batch.
         grad_logits /= len(self.targets)
 
         # Avoid reusing the gradients in the next iteration
@@ -393,10 +394,10 @@ class CrossEntropyLoss(Module):
         Forward pass for computing the cross-entropy loss.
 
         Args:
-            logits (np.ndarray):
+            logits:
                 Logits of the model, which are the raw, unnormalized predictions from the model
                 (before softmax is applied).
-            targets (np.ndarray):
+            targets:
                 Array of integers where each element is a class index which is the ground truth
                 label for the corresponding input.
         """

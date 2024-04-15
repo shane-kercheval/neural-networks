@@ -17,8 +17,8 @@ docker_rebuild:
 # Project
 ####
 linting:
-	ruff torchpy
-	ruff torchpy_tests
+	ruff check torchpy
+	ruff check torchpy_tests
 
 unit_tests:
 	pytest torchpy_tests
