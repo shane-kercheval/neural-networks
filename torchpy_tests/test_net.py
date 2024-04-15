@@ -71,7 +71,7 @@ def test_linear_very_small_numbers(linear_small):  # noqa
     output = linear(x)
     assert not np.isnan(output).any()
 
-def test_gradient_checking(linear_small):  # noqa
+def test_linear_gradient_using_numerical_approximation(linear_small):  # noqa
     """
     Test to perform numerical gradient checking on a Linear layer.
     Gradient checking is a technique to approximate the gradient computed by backpropagation
@@ -330,3 +330,96 @@ def test_cross_entropy_gradient_correctness():  # noqa
         actual_grad, expected_grad,
         decimal=5, err_msg="Gradient of CrossEntropyLoss is incorrect",
     )
+
+def test_initialization():  # noqa
+    layer = net.BatchNorm(10)
+    assert layer.gamma.shape == (1, 10)
+    assert np.allclose(layer.gamma, 1, atol=0.05)
+    assert layer.beta.shape == (1, 10)
+    assert np.allclose(layer.beta, 0, atol=0.05)
+    assert layer.running_mean.shape == (1, 10)
+    assert np.all(layer.running_mean == 0)
+    assert layer.running_var.shape == (1, 10)
+    assert np.all(layer.running_var == 1)
+
+def test_forward_training_mode():  # noqa
+    layer = net.BatchNorm(10)
+    rng = np.random.default_rng()
+    x = rng.standard_normal((100, 10))
+    with net.training_mode():
+        output = layer(x)
+    assert output.shape == x.shape
+    # Check that the output mean is approximately zero and std is close to one because
+    # the layer is initialized to normalize the input data and we have not updated the parameters
+    assert np.allclose(output.mean(axis=0), 0, atol=0.05)
+    assert np.allclose(output.std(axis=0), 1, atol=0.05)
+
+def test_forward_inference_mode():  # noqa
+    layer = net.BatchNorm(10)
+    rng = np.random.default_rng()
+    x = rng.standard_normal((100, 10))
+    output = layer(x)
+    assert output.shape == x.shape
+    # we have not ran training mode, so the output should be close to the input
+    assert np.allclose(output, x, atol=0.2)
+
+def test_backward_pass():  # noqa
+    layer = net.BatchNorm(10)
+    rng = np.random.default_rng()
+    x = rng.standard_normal((100, 10))
+    grad_output = rng.standard_normal((100, 10))
+    with net.training_mode():
+        layer(x)  # Forward pass to set internal states
+        grad_input = layer.backward(grad_output)
+    assert grad_input.shape == x.shape
+
+def test_parameter_updates():  # noqa
+    layer = net.BatchNorm(10)
+    optimizer = net.SGD(learning_rate=0.01)
+    rng = np.random.default_rng()
+    x = rng.standard_normal((100, 10))
+    grad_output = rng.standard_normal((100, 10))
+    with net.training_mode():
+        _ = layer.forward(x)
+        layer.backward(grad_output)
+        old_gamma = layer.gamma.copy()
+        old_beta = layer.beta.copy()
+        layer.step(optimizer)
+    # Check that parameters have been updated
+    assert not np.array_equal(layer.gamma, old_gamma)
+    assert not np.array_equal(layer.beta, old_beta)
+
+def numerical_gradient(layer, x, grad_output, epsilon=1e-5):  # noqa
+    """Utility function to compute the numerical gradients of Batch Norm's parameters."""
+    grad_approx = np.zeros_like(layer.gamma)
+    for i in range(layer.gamma.size):
+        # Perturb gamma positively
+        layer.gamma.flat[i] += epsilon
+        out1 = layer.forward(x)
+        loss1 = np.sum(out1 * grad_output)
+        # Perturb gamma negatively
+        layer.gamma.flat[i] -= 2 * epsilon
+        out2 = layer.forward(x)
+        loss2 = np.sum(out2 * grad_output)
+        # Compute the approximate gradient
+        grad_approx.flat[i] = (loss1 - loss2) / (2 * epsilon)
+        # Reset gamma to original value
+        layer.gamma.flat[i] += epsilon
+    return grad_approx
+
+def test_batch_norm_backward_gradients():  # noqa
+    layer = net.BatchNorm(num_features=10)
+    rng = np.random.default_rng(seed=42)
+    x = rng.standard_normal((10, 10))
+    grad_output = rng.standard_normal((10, 10))
+
+    # Perform forward pass to set internal states needed for backward pass
+    with net.training_mode():
+        _ = layer.forward(x)
+        layer.backward(grad_output)
+        num_grad_gamma = numerical_gradient(layer, x, grad_output)
+
+    # Check if the analytical gradients are close to the numerical ones
+    assert np.allclose(layer.gamma_grad, num_grad_gamma, atol=1e-5), \
+        f"Analytical gamma gradients do not match numerical gradients. " \
+        f"Analytical: {layer.gamma_grad}, Numerical: {num_grad_gamma}"

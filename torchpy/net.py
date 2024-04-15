@@ -1,7 +1,7 @@
 
 """Includes building blocks for neural networks."""
 from abc import ABC, abstractmethod
-from typing import ClassVar
+from typing import Callable, ClassVar
 from contextlib import ContextDecorator
 import numpy as np
 from numpy.random import default_rng
@@ -71,7 +71,7 @@ class Module(ABC):
         """
         raise NotImplementedError
 
-    def step(self, optimizer: callable) -> None:
+    def step(self, optimizer: Callable[[np.ndarray, np.ndarray], None]) -> None:
         """
         Update the parameters of the module using the gradient computed during
         backpropagation and the optimizer provided.
@@ -107,7 +107,7 @@ class TrainableParamsModule(Module):
         """Clear the gradient of the module."""
 
     @abstractmethod
-    def _step(self, optimizer: callable) -> None:
+    def _step(self, optimizer: Callable[[np.ndarray, np.ndarray], None]) -> None:
         """
         Update the weights and biases of the module using the gradient computed during
         backpropagation and the optimizer provided.
@@ -116,7 +116,7 @@ class TrainableParamsModule(Module):
             optimizer (callable): The optimizer to use for updating the weights and biases.
         """
 
-    def step(self, optimizer: callable) -> None:
+    def step(self, optimizer: Callable[[np.ndarray, np.ndarray], None]) -> None:
         """
         Update the weights and biases of the module using the gradient computed during
         backpropagation and the optimizer provided.
@@ -199,7 +199,7 @@ class Linear(TrainableParamsModule):
         self.weight_grad = None
         self.bias_grad = None
 
-    def _step(self, optimizer: callable) -> None:
+    def _step(self, optimizer: Callable[[np.ndarray, np.ndarray], None]) -> None:
         """
         Update the weights and biases of the module using the gradient computed during
         backpropagation and the optimizer provided.
@@ -478,13 +478,151 @@ class Sequential(Module):
             grad_output = module.backward(grad_output)
         return grad_output
 
-    def step(self, optimizer: callable) -> None:
+    def step(self, optimizer: Callable[[np.ndarray, np.ndarray], None]) -> None:
         """
         Update the parameters of the modules using the gradient computed during
         backpropagation.
         """
         for module in self.layers:
             module.step(optimizer)
+
+
+class BatchNorm(TrainableParamsModule):
+    """
+    Batch normalization layer.
+
+    Normalizes the input to a layer for each mini-batch, which helps in accelerating the training
+    process by reducing internal covariate shift.
+    """
+
+    def __init__(self, num_features: int, momentum: float = 0.9, seed: int = 42):
+        """
+        Initialize the batch normalization layer.
+
+        Args:
+            num_features:
+                The number of features from the input tensors expected on the last axis.
+            momentum:
+                The momentum factor for the moving average of the mean and variance. Common values
+                for momentum are between 0.9 and 0.99. These values determine how fast the running
+                averages forget the oldest observed values. A higher momentum (closer to 1) means
+                that older batches influence the running average more strongly and for longer,
+                providing stability but making the running averages slower to react to changes in
+                data distribution.
+            seed:
+                Random seed for reproducibility.
+        """
+        super().__init__()
+        rng = default_rng(seed)
+        self.eps = 1e-8  # added to the variance to avoid dividing by zero
+        self.momentum = momentum
+        # Parameters to be learned
+        # gamma is the scale parameter and allows the network to learn the optimal scale
+        # for each feature.
+        # beta is the shift parameter and allows the network to learn the optimal mean for each
+        # feature.
+        self.gamma = rng.normal(loc=1.0, scale=0.02, size=(1, num_features))
+        self.beta = rng.normal(loc=0.0, scale=0.02, size=(1, num_features))
+        # Moving statistics, not to be learned, only updated during training and used during
+        # inference
+        self.running_mean = np.zeros((1, num_features))
+        self.running_var = np.ones((1, num_features))
+        self.gamma_grad = None
+        self.beta_grad = None
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """
+        Forward pass for batch normalization.
+
+        Args:
+            x: Input data of shape (batch_size, num_features)
+
+        Returns:
+            np.ndarray: Normalized data.
+        """
+        # if training, calculate the batch mean and variance and update the running statistics
+        # otherwise, normalize using the running statistics
+        if Module.training:
+            self.x = x
+            # mean and variance for the batch
+            self.batch_mean = np.mean(x, axis=0, keepdims=True)
+            self.batch_var = np.var(x, axis=0, keepdims=True)
+            # Update the running mean and variance based on the momentum which is used to
+            self.running_mean = self.momentum * self.running_mean \
+                + (1 - self.momentum) * self.batch_mean
+            self.running_var = self.momentum * self.running_var \
+                + (1 - self.momentum) * self.batch_var
+            # Normalize the batch
+            self.x_normalized = (x - self.batch_mean) / np.sqrt(self.batch_var + self.eps)
+            # normalize, scale, and then shift the data
+            out = self.gamma * self.x_normalized + self.beta
+        else:
+            # Normalize using running statistics during inference
+            x_normalized = (x - self.running_mean) / np.sqrt(self.running_var + self.eps)
+            out = self.gamma * x_normalized + self.beta
+        return out
+
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        """
+        Backward pass for batch normalization.
+
+        This method calculates the gradients of the batch normalization layer's output with respect
+        to its inputs, as well as the gradients with respect to the learnable parameters gamma and
+        beta
+
+        Args:
+            grad_output: Gradient of the loss with respect to the output of this layer (dL/dy).
+
+        Returns:
+            np.ndarray: Gradient of the loss with respect to the input of this layer (dL/dx).
+        """
+        assert Module.training, "Backward pass should only be called during training."
+        # Gradient with respect to parameters gamma (y) and beta (β)
+        # dL/dy = o (dL/dy * x_norm)
+        # Where x_norm = (x - batch_mean) / sqrt(batch_var + eps)
+        self.gamma_grad = np.sum(grad_output * self.x_normalized, axis=0, keepdims=True)
+        # dL/dβ = o (dL/dy)
+        # Since β is added to the normalized input, its gradient is the sum of the incoming gradients.
+        self.beta_grad = np.sum(grad_output, axis=0, keepdims=True)
+        # Gradient with respect to the input (dL/dx)
+        num_samples = grad_output.shape[0]
+        x_centered = self.x - self.batch_mean
+        st_dev_inverse = 1 / np.sqrt(self.batch_var + self.eps)
+        # Gradient with respect to the normalized input (x_norm)
+        # dL/dx_norm = dL/dy * y
+        dx_normalized = grad_output * self.gamma
+        # Intermediate gradient for variance (o^2)
+        # dL/do^2 = o (dL/dx_norm * (x - μ)) * -1/2 * o^-3
+        dvar = np.sum(dx_normalized * x_centered, axis=0, keepdims=True) * -.5 * st_dev_inverse**3
+        # Intermediate gradient for mean (μ)
+        # dL/dμ = o (dL/dx_norm * -1/o) + dL/do^2 * o(-2 * (x - μ)/N)
+        dmean = np.sum(dx_normalized * -st_dev_inverse, axis=0, keepdims=True) \
+            + dvar * np.mean(-2. * x_centered, axis=0, keepdims=True)
+        # Final gradient with respect to input x
+        # dL/dx = dL/dx_norm / o + dL/do^2 * 2(x - μ)/N + dL/dμ/N
+        return (dx_normalized * st_dev_inverse) \
+            + (dvar * 2 * x_centered / num_samples) \
+            + (dmean / num_samples)
+
+
+    def _zero_grad(self) -> None:
+        """Clear the gradient of the layer."""
+        self.gamma_grad = None
+        self.beta_grad = None
+
+    def _step(self, optimizer: Callable[[np.ndarray, np.ndarray], None]) -> None:
+        """
+        Update the gamma and beta parameters using the provided optimizer.
+
+        Args:
+            optimizer (callable): The optimizer to use for updating the parameters.
+        """
+        assert Module.training
+        assert self.gamma_grad is not None
+        assert self.beta_grad is not None, "Gradient not calculated."
+        optimizer(self.gamma, self.gamma_grad)
+        optimizer(self.beta, self.beta_grad)
+        self._zero_grad()
 
 
 class SGD:
