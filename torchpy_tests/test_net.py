@@ -37,7 +37,7 @@ def test_linear_backward(linear_small):  # noqa
     grad_output = rng.standard_normal((2, 3))  # batch_size=2, output_features=3
 
     # Enter training mode
-    with net.Module.training_mode():
+    with net.training_mode():
         linear.forward(x)  # Necessary to cache input in `x` for gradient computation
         grad_input = linear.backward(grad_output)
     assert grad_input.shape == (2, 4), "Gradient input shape should match input shape"
@@ -50,7 +50,7 @@ def test_linear_parameter_update(linear_small):  # noqa
     optimizer = net.SGD(learning_rate=0.01)
     initial_weights = np.copy(linear.weights)
     initial_biases = np.copy(linear.biases)
-    with net.Module.training_mode():
+    with net.training_mode():
         linear.forward(x)
         linear.backward(grad_output)
         weight_grad = np.copy(linear.weight_grad)
@@ -87,7 +87,7 @@ def test_gradient_checking(linear_small):  # noqa
     # Compute the original output of the layer to be used in gradient computation
     original_output = linear(x)
     # Enter training mode
-    with net.Module.training_mode():
+    with net.training_mode():
         for i in range(linear.weights.shape[0]):  # loop over rows of the weights matrix
             for j in range(linear.weights.shape[1]):  # loop over columns
                 old_value = linear.weights[i, j]
@@ -143,7 +143,7 @@ def test_relu_backward():  # noqa
         [1.5, 0.0, -2.0],
     ])
     relu = net.ReLU()
-    with net.Module.training_mode():
+    with net.training_mode():
         relu.forward(inputs)
         # Gradients received from the next layer in the network (or from the loss function).
         # These are hypothetical values to test the gating behavior of ReLU.
@@ -217,7 +217,7 @@ def test_softmax_backward():  # noqa
     """Test the softmax backward function."""
     logits = np.array([[1.0, 2.0, 3.0]])
     softmax = net.Softmax()
-    with net.Module.training_mode():
+    with net.training_mode():
         predictions = softmax.forward(logits)
         grad_output = np.array([[0.1, 0.3, 0.6]])
         grad = softmax.backward(grad_output)
@@ -265,7 +265,7 @@ def test_training_mode_caching():  # noqa
 
     assert net.Module.training is False, "Module should not be in training mode initially"
     # Test with the context manager for training mode
-    with net.Module.training_mode():
+    with net.training_mode():
         assert net.Module.training is True, "Module should be in training mode within context"
         loss_func = net.CrossEntropyLoss()
         assert loss_func.logits is None, "Should not have any logits initially"
@@ -293,7 +293,7 @@ def test_loss_computation_independence_from_mode():  # noqa
     logits = np.array([[0.2, 0.8], [0.5, 0.5]])
     targets = np.array([1, 0])
 
-    with net.Module.training_mode():
+    with net.training_mode():
         loss_module = net.CrossEntropyLoss()
         loss_training = loss_module(logits, targets)
 
@@ -314,7 +314,7 @@ def test_cross_entropy_gradient_correctness():  # noqa
 
     loss_module = net.CrossEntropyLoss()
 
-    with net.Module.training_mode():
+    with net.training_mode():
         loss_module(logits, targets)
         actual_grad = loss_module.backward()
 

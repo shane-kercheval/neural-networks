@@ -6,23 +6,24 @@ from contextlib import ContextDecorator
 import numpy as np
 from numpy.random import default_rng
 
+
+class training_mode(ContextDecorator):  # noqa: N801
+    """A context manager to set the module in training mode temporarily."""\
+
+    @classmethod
+    def __enter__(cls: 'Module.training_mode'):
+        Module.training = True
+        return cls
+
+    @classmethod
+    def __exit__(cls: 'Module.training_mode', exc_type, exc_value, traceback):  # noqa: ANN001
+        Module.training = False
+
+
 class Module(ABC):
     """Base class for all neural network modules."""
 
     training: ClassVar[bool] = False
-
-    class training_mode(ContextDecorator):  # noqa: N801
-        """A context manager to set the module in training mode temporarily."""\
-
-        @classmethod
-        def __enter__(cls: 'Module.training_mode'):
-            Module.training = True
-            return cls
-
-        @classmethod
-        def __exit__(cls: 'Module.training_mode', exc_type, exc_value, traceback):  # noqa: ANN001
-            Module.training = False
-
 
     @abstractmethod
     def forward(self, x: np.ndarray) -> np.ndarray:
