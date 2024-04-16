@@ -582,7 +582,8 @@ class BatchNorm(TrainableParamsModule):
         # Where x_norm = (x - batch_mean) / sqrt(batch_var + eps)
         self.gamma_grad = np.sum(grad_output * self.x_normalized, axis=0, keepdims=True)
         # dL/dβ = o (dL/dy)
-        # Since β is added to the normalized input, its gradient is the sum of the incoming gradients.
+        # Since β is added to the normalized input, its gradient is the sum of the incoming
+        # gradients.
         self.beta_grad = np.sum(grad_output, axis=0, keepdims=True)
         # Gradient with respect to the input (dL/dx)
         num_samples = grad_output.shape[0]
