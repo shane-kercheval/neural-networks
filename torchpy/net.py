@@ -114,7 +114,10 @@ class TrainableParamsModule(Module):
         backpropagation and the optimizer provided.
 
         Args:
-            optimizer (callable): The optimizer to use for updating the weights and biases.
+            optimizer:
+                The optimizer to use for updating the weights and biases. The optimizer takes
+                the parameters as the first argument and the gradients as the second argument
+                and updates the parameters in place.
         """
 
     def step(self, optimizer: Callable[[np.ndarray, np.ndarray], None]) -> None:
