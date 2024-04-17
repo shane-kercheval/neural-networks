@@ -1,6 +1,7 @@
 
 """Includes building blocks for neural networks."""
 from abc import ABC, abstractmethod
+from textwrap import dedent
 from typing import Callable, ClassVar
 from contextlib import ContextDecorator
 import numpy as np
@@ -288,6 +289,10 @@ class Linear(TrainableParamsModule):
         self.bias_grad = np.sum(grad_output, axis=0, keepdims=True)
         return grad_output @ self.weights.T  # gradient with respect to input (x)
 
+    def __str__(self) -> str:
+        """String representation of the Linear layer."""
+        return f"Linear({self.weights.shape[0]}x{self.weights.shape[1]})"
+
 
 class ReLU(Module):
     """ReLU activation function."""
@@ -325,6 +330,10 @@ class ReLU(Module):
         assert Module.training
         assert self.output is not None, "Forward pass not called before backward pass"
         return grad_output * (self.output > 0)  # Element-wise multiplication
+
+    def __str__(self) -> str:
+        """String representation of the ReLU layer."""
+        return "ReLU()"
 
 
 class CrossEntropyLoss(Module):
@@ -486,6 +495,15 @@ class Sequential(Module):
         for module in self.layers:
             module.step(optimizer)
 
+    def __str__(self) -> str:
+        """String representation of the Sequential container."""
+        layers_str = "    " + ",\n    ".join(str(layer) for layer in self.layers)
+        return dedent(f"""
+        Sequential(
+        {layers_str}
+        )
+        """).strip()
+
 
 class BatchNorm(TrainableParamsModule):
     """
@@ -624,6 +642,10 @@ class BatchNorm(TrainableParamsModule):
         optimizer(self.beta, self.beta_grad)
         self._zero_grad()
 
+    def __str__(self) -> str:
+        """String representation of the BatchNorm layer."""
+        return f"BatchNorm({self.gamma.shape[1]}, momentum={self.momentum})"
+
 
 class SGD:
     """Stochastic Gradient Descent optimizer."""
@@ -638,3 +660,118 @@ class SGD:
     def __call__(self, parameters: np.ndarray, grads: np.ndarray) -> None:
         """Update the parameters using the gradients and learning rate."""
         parameters -= self.learning_rate * grads
+
+
+class Conv2D(TrainableParamsModule):
+    """A 2D Convolutional Layer class that performs convolution operations on the input data."""
+
+    def __init__(
+            self,
+            in_channels: int,
+            out_channels: int,
+            kernel_size: int,
+            stride: int = 1,
+            padding: int = 0,
+            seed: int | None = None):
+        """
+        Initializes the Conv2D layer with given parameters and random weights.
+
+        Args:
+            in_channels (int): Number of channels in the input.
+            out_channels (int): Number of filters (producing different channels at the output).
+            kernel_size (int): Size of each filter (assumed square).
+            stride (int): How far the filters should move in each step.
+            padding (int): Padding around the input to keep the spatial size constant.
+            seed (int, optional): Random seed for reproducibility.
+        """
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        if seed is not None:
+            np.random.seed(seed)  # Set the seed for reproducibility
+        self.weights = np.random.normal(0, 0.1, (out_channels, in_channels, kernel_size, kernel_size))  # Initialize weights
+        self.biases = np.zeros(out_channels)  # Initialize biases to zero
+        self._zero_grad()  # Reset gradients
+
+    def _zero_grad(self):
+        """Resets gradients of weights and biases to zero."""
+        self.weight_grad = np.zeros_like(self.weights)  # Zero gradient array for weights
+        self.bias_grad = np.zeros_like(self.biases)  # Zero gradient array for biases
+
+    def forward(self, x):
+        """
+        Perform the forward pass of the convolutional layer using the input data.
+        
+        Args:
+            x (ndarray): Input data of shape (batch_size, in_channels, height, width).
+        
+        Returns:
+            ndarray: Output data after applying the convolution operation.
+        """
+        self.x = np.pad(x, ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)), mode='constant')  # Pad the input
+        batch_size, _, H, W = self.x.shape  # Dimensions of the padded input
+        H_out = (H - self.kernel_size) // self.stride + 1  # Calculate output height
+        W_out = (W - self.kernel_size) // self.stride + 1  # Calculate output width
+        y = np.zeros((batch_size, self.out_channels, H_out, W_out))  # Initialize output tensor
+
+        for i in range(H_out):
+            for j in range(W_out):
+                h_start = i * self.stride  # Start index for height slicing
+                h_end = h_start + self.kernel_size  # End index for height slicing
+                w_start = j * self.stride  # Start index for width slicing
+                w_end = w_start + self.kernel_size  # End index for width slicing
+                x_slice = self.x[:, :, h_start:h_end, w_start:w_end]  # Extract the relevant slice
+                for k in range(self.out_channels):  # Iterate over each filter
+                    y[:, k, i, j] = np.sum(x_slice * self.weights[k, :, :, :], axis=(1, 2, 3)) + self.biases[k]  # Convolve and add bias
+
+        if Module.training:
+            self.output = y  # Store output for backpropagation
+        return y
+
+    def backward(self, grad_output):
+        """
+        Perform the backward pass of the convolutional layer by computing the gradients with respect to the input,
+        weights, and biases based on the output gradients provided.
+        
+        Args:
+            grad_output (ndarray): Gradient of the loss with respect to the output of this layer.
+        
+        Returns:
+            ndarray: Gradient of the loss with respect to the input of this layer.
+        """
+        batch_size, _, H_out, W_out = grad_output.shape  # Dimensions of the output gradients
+        dx = np.zeros_like(self.x)  # Initialize gradient w.r.t input
+        dw = np.zeros_like(self.weights)  # Initialize gradient w.r.t weights
+        db = np.zeros_like(self.biases)  # Initialize gradient w.r.t biases
+
+        for i in range(H_out):
+            for j in range(W_out):
+                h_start = i * self.stride  # Start index for height
+                h_end = h_start + self.kernel_size  # End index for height
+                w_start = j * self.stride  # Start index for width
+                w_end = w_start + self.kernel_size  # End index for width
+                for k in range(self.out_channels):
+                    x_slice = self.x[:, :, h_start:h_end, w_start:w_end]  # Extract slice
+                    dw[k] += np.sum(x_slice * grad_output[:, [k], i:i+1, j:j+1], axis=0)  # Compute weight gradient
+                    db[k] += np.sum(grad_output[:, k, i, j])  # Compute bias gradient
+                    dx[:, :, h_start:h_end, w_start:w_end] += self.weights[k] * grad_output[:, [k], i:i+1, j:j+1]  # Compute input gradient
+
+        if self.padding != 0:
+            dx = dx[:, :, self.padding:-self.padding, self.padding:-self.padding]  # Remove padding from gradient
+        self.weight_grad = dw
+        self.bias_grad = db
+        return dx
+
+    def _step(self, optimizer):
+        """
+        Update the weights and biases using the computed gradients and the optimizer provided.
+        
+        Args:
+            optimizer (Callable): The optimizer function to use for updating the parameters.
+        """
+        optimizer(self.weights, self.weight_grad)  # Apply gradient descent to weights
+        optimizer(self.biases, self.bias_grad)  # Apply gradient descent to biases
+        self._zero_grad()  # Reset gradients after update

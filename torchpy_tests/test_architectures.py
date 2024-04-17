@@ -25,3 +25,4 @@ def test__MLP():  # noqa
         grad_output = rng.normal(loc=0, scale=1, size=(100, 2))
         mlp.backward(grad_output)
         mlp.step(optimizer=lambda p, g: p - 0.1 * g)
+    assert str(mlp)
