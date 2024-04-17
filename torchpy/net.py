@@ -768,10 +768,130 @@ class Conv2D(TrainableParamsModule):
     def _step(self, optimizer):
         """
         Update the weights and biases using the computed gradients and the optimizer provided.
-        
+
         Args:
             optimizer (Callable): The optimizer function to use for updating the parameters.
         """
         optimizer(self.weights, self.weight_grad)  # Apply gradient descent to weights
         optimizer(self.biases, self.bias_grad)  # Apply gradient descent to biases
         self._zero_grad()  # Reset gradients after update
+
+    def __str__(self) -> str:
+        """String representation of the Conv2D layer."""
+        return f"Conv2D({self.in_channels}, {self.out_channels}, kernel_size={self.kernel_size}, stride={self.stride}, padding={self.padding})"  # noqa
+
+
+class MaxPool2D(Module):
+    def __init__(self, kernel_size, stride=None):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.stride = stride if stride is not None else kernel_size
+
+    def forward(self, x):
+        self.input_shape = x.shape
+        self.input_data = x  # Save the actual input data for use in the backward pass
+        batch_size, channels, height, width = x.shape
+        self.out_height = (height - self.kernel_size) // self.stride + 1
+        self.out_width = (width - self.kernel_size) // self.stride + 1
+
+        # Prepare the output tensor
+        output = np.zeros((batch_size, channels, self.out_height, self.out_width))
+
+        # Perform max pooling
+        for i in range(self.out_height):
+            for j in range(self.out_width):
+                h_start = i * self.stride
+                h_end = h_start + self.kernel_size
+                w_start = j * self.stride
+                w_end = w_start + self.kernel_size
+                x_slice = x[:, :, h_start:h_end, w_start:w_end]
+                output[:, :, i, j] = np.max(x_slice, axis=(2, 3))
+
+        # Save the output for gradient computation in backward pass
+        self.latest_output = output
+        return output
+
+    def backward(self, grad_output):
+        grad_input = np.zeros_like(self.input_data)  # Use the actual input data shape for gradient
+
+        for i in range(self.out_height):
+            for j in range(self.out_width):
+                h_start = i * self.stride
+                h_end = h_start + self.kernel_size
+                w_start = j * self.stride
+                w_end = w_start + self.kernel_size
+                for n in range(grad_output.shape[0]):  # Loop through batch size
+                    for c in range(grad_output.shape[1]):  # Loop through channels
+                        x_slice = self.input_data[n, c, h_start:h_end, w_start:w_end]
+                        mask = (x_slice == np.max(x_slice))
+                        grad_input[n, c, h_start:h_end, w_start:w_end] += mask * grad_output[n, c, i, j]
+
+        return grad_input
+
+    def __str__(self):
+        return f"MaxPool2D(kernel_size={self.kernel_size}, stride={self.stride})"
+
+# class MaxPool2D(Module):
+#     def __init__(self, kernel_size, stride=None):
+#         super().__init__()
+#         self.kernel_size = kernel_size
+#         self.stride = stride if stride is not None else kernel_size
+
+#     def forward(self, x):
+#         self.input_shape = x.shape
+#         batch_size, channels, height, width = x.shape
+#         self.out_height = (height - self.kernel_size) // self.stride + 1
+#         self.out_width = (width - self.kernel_size) // self.stride + 1
+
+#         # Prepare the output tensor
+#         output = np.zeros((batch_size, channels, self.out_height, self.out_width))
+
+#         # Perform max pooling
+#         for i in range(self.out_height):
+#             for j in range(self.out_width):
+#                 h_start = i * self.stride
+#                 h_end = h_start + self.kernel_size
+#                 w_start = j * self.stride
+#                 w_end = w_start + self.kernel_size
+#                 x_slice = x[:, :, h_start:h_end, w_start:w_end]
+#                 output[:, :, i, j] = np.max(x_slice, axis=(2, 3))
+
+#         # Save the output for gradient computation in backward pass
+#         self.latest_output = output
+#         return output
+
+#     def backward(self, grad_output):
+#         grad_input = np.zeros(self.input_shape)
+
+#         for i in range(self.out_height):
+#             for j in range(self.out_width):
+#                 h_start = i * self.stride
+#                 h_end = h_start + self.kernel_size
+#                 w_start = j * self.stride
+#                 w_end = w_start + self.kernel_size
+#                 # Tile and reshape to match the input dimensions
+#                 grad_max = grad_output[:, :, i, j][:, :, None, None]
+#                 x_slice = self.input_shape[:, :, h_start:h_end, w_start:w_end]
+#                 # Create mask where maximum occurred
+#                 mask = (x_slice == self.latest_output[:, :, i, j][:, :, None, None])
+#                 # Distribute gradients where the maxima were found
+#                 grad_input[:, :, h_start:h_end, w_start:w_end] += mask * grad_max
+
+#         return grad_input
+
+
+class Flatten(Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        self.input_shape = x.shape  # Save the input shape to reshape the gradient correctly in the backward pass
+        # Flatten the input except for the batch dimension
+        return x.reshape(x.shape[0], -1)
+
+    def backward(self, grad_output):
+        # Reshape the gradient to the shape of the original input
+        return grad_output.reshape(self.input_shape)
+
+    def __str__(self):
+        return "Flatten()"
