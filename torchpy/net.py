@@ -666,22 +666,61 @@ class SGD:
         """Update the parameters using the gradients and learning rate."""
         parameters -= self.learning_rate * grads
 
-@jit(nopython=True, parallel=True)
-def convolve(x, weights, biases, y, stride, kernel_size):
-    batch_size, in_channels, height, width = x.shape
-    out_channels, _, _, _ = weights.shape
-    H_out = (height - kernel_size) // stride + 1
-    W_out = (width - kernel_size) // stride + 1
+@jit(nopython=True)
+def _feature_map_dimensions(
+        height: int,
+        width: int,
+        kernel_size: int,
+        stride: int) -> tuple[int, int]:
+    """
+    Calculate the height and width of the feature map after applying the convolution operation.
 
-    for b in prange(batch_size):  # Parallel execution over batches
-        for k in prange(out_channels):  # Parallel execution over filters
-            for i in range(H_out):
-                for j in range(W_out):
-                    h_start = i * stride
-                    h_end = h_start + kernel_size
-                    w_start = j * stride
-                    w_end = w_start + kernel_size
-                    y[b, k, i, j] = np.sum(x[b, :, h_start:h_end, w_start:w_end] * weights[k, :, :, :]) + biases[k]
+    Args:
+        height: Height of the input data (after padding if applied).
+        width: Width of the input data (after padding if applied).
+        kernel_size: Size of the kernel.
+        stride: Stride of the convolution operation.
+        padding: Padding applied to the input data.
+
+    Returns:
+        tuple[int, int]: Height and width of the feature map.
+    """
+    output_height = ((height - kernel_size) // stride) + 1
+    output_width = ((width - kernel_size) // stride) + 1
+    return output_height, output_width
+
+@jit(nopython=True, parallel=True)
+def convolve(
+        x: np.ndarray,
+        y: np.ndarray,
+        weights: np.ndarray,
+        biases: np.ndarray,
+        stride: int,
+        kernel_size: int) -> None:
+    """
+    Perform the convolution operation on the input data using the weights and biases provided.
+    Uses Numba to speed up the computation and parallelize the operation. The function updates the
+    output (y) in place.
+    """
+    batch_size, _, height, width = x.shape
+    out_channels = weights.shape[0]
+    output_height, output_width = _feature_map_dimensions(height, width, kernel_size, stride)
+
+    for sample_index in prange(batch_size):  # Parallel execution over batches
+        for filter_index in prange(out_channels):  # Parallel execution over filters
+            # apply the filter to the input data based on the stride and kernel size
+            # this is what creates the feature maps (for each filter)
+            for i in range(output_height):
+                for j in range(output_width):
+                    height_start = i * stride
+                    height_end = height_start + kernel_size
+                    width_start = j * stride
+                    width_end = width_start + kernel_size
+                    # this is basically what creates the image on pg 483 of Hands on ML
+                    y[sample_index, filter_index, i, j] = np.sum(
+                            x[sample_index, :, height_start:height_end, width_start:width_end] * \
+                                weights[filter_index, :, :, :],
+                        ) + biases[filter_index]
 
 
 class Conv2D(TrainableParamsModule):
@@ -699,12 +738,24 @@ class Conv2D(TrainableParamsModule):
         Initializes the Conv2D layer with given parameters and random weights.
 
         Args:
-            in_channels (int): Number of channels in the input.
-            out_channels (int): Number of filters (producing different channels at the output).
-            kernel_size (int): Size of each filter (assumed square).
-            stride (int): How far the filters should move in each step.
-            padding (int): Padding around the input to keep the spatial size constant.
-            seed (int, optional): Random seed for reproducibility.
+            in_channels:
+                Number of channels in the input. This is the number of filters/feature maps in the
+                previous layer.
+            out_channels:
+                Number of filters (producing different channels at the output). This is the number
+                of filters in this layer. The number of filters is the same as the number of
+                feature maps in the output. The act of applying a filter across the entire input
+                data creates a feature map. In other words, each feature map is made up of the
+                the same filter applied across the entire input data.
+            kernel_size: Size of each filter (assumed square).
+            stride:
+                The horizontal and vertical step size between each application of the filter to
+                the input data.
+            padding:
+                The number of zeros to add to the input data on each side of the height and width.
+                For example a padding of 1 will add a row of zeros to the top, bottom, left, and
+                right of the input data.
+            seed: Random seed for reproducibility.
         """
         super().__init__()
         self.in_channels = in_channels
@@ -712,123 +763,159 @@ class Conv2D(TrainableParamsModule):
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
-        if seed is not None:
-            np.random.seed(seed)  # Set the seed for reproducibility
-        self.weights = np.random.normal(0, 0.1, (out_channels, in_channels, kernel_size, kernel_size))  # Initialize weights
-        self.biases = np.zeros(out_channels)  # Initialize biases to zero
-        self._zero_grad()  # Reset gradients
+        rng = np.random.default_rng(seed)
+        # self.weights stores the filters for the convolution operation
+        # Each filter has shape (kernel_size, kernel_size)
+        self.weights = rng.normal(
+            loc=0,  # mean
+            scale=0.1,  # standard deviation
+            size=(out_channels, in_channels, kernel_size, kernel_size))  # Initialize weights
+        self.biases = np.zeros(out_channels)
+        self._zero_grad()
 
     def _zero_grad(self) -> None:
         """Resets gradients of weights and biases to zero."""
         self.weight_grad = None
         self.bias_grad = None
 
-    # @profile
-    def forward(self, x):
+    def forward(self, x: np.ndarray) -> np.ndarray:
         """
         Perform the forward pass of the convolutional layer using the input data.
-        
+
         Args:
             x (ndarray): Input data of shape (batch_size, in_channels, height, width).
-        
-        Returns:
-            ndarray: Output data after applying the convolution operation.
         """
-        x = np.pad(x, ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)), mode='constant')  # Pad the input
-        batch_size, in_channels, height, width = x.shape
-        out_channels, _, _, _ = self.weights.shape
-        H_out = (height - self.kernel_size) // self.stride + 1
-        W_out = (width - self.kernel_size) // self.stride + 1
-        y = np.zeros((batch_size, self.out_channels, H_out, W_out))  # Initialize output tensor
-        convolve(x, self.weights, self.biases, y, self.stride, self.kernel_size)
-
-        # batch_size, _, H, W = self.x.shape  # Dimensions of the padded input
-        # H_out = (H - self.kernel_size) // self.stride + 1  # Calculate output height
-        # W_out = (W - self.kernel_size) // self.stride + 1  # Calculate output width
-
-        # for i in range(H_out):
-        #     for j in range(W_out):
-        #         h_start = i * self.stride  # Start index for height slicing
-        #         h_end = h_start + self.kernel_size  # End index for height slicing
-        #         w_start = j * self.stride  # Start index for width slicing
-        #         w_end = w_start + self.kernel_size  # End index for width slicing
-        #         x_slice = self.x[:, :, h_start:h_end, w_start:w_end]  # Extract the relevant slice
-        #         for k in range(self.out_channels):  # Iterate over each filter
-        #             y[:, k, i, j] = np.sum(x_slice * self.weights[k, :, :, :], axis=(1, 2, 3)) + self.biases[k]  # Convolve and add bias
-
+        # Pad the input
+        # x is a 4D tensor with shape (batch_size, in_channels, height, width)
+        x = np.pad(
+            x,
+            (
+                (0, 0),  # no padding along the batch size dimension.
+                (0, 0),  # no padding along the channels dimension.
+                (self.padding, self.padding),  # padding before and after the height
+                (self.padding, self.padding),  # padding before and after the width
+            ),
+            mode='constant',
+        )
+        batch_size, _, input_height, input_width = x.shape
+        # the output is the result of applying the filters to the input data (the feature maps)
+        output_height, output_width = _feature_map_dimensions(
+            input_height, input_width, self.kernel_size, self.stride,
+        )
+        output = np.zeros((batch_size, self.out_channels, output_height, output_width))
+        convolve(x, output, self.weights, self.biases, self.stride, self.kernel_size)
         if Module.training:
             self.x = x  # Store input for backpropagation
-            self.output = y  # Store output for backpropagation
-        return y
+            self.output = output  # Store output for backpropagation
+        return output
 
-    # @profile
-    def backward(self, grad_output):
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
         """
-        Perform the backward pass of the convolutional layer by computing the gradients with respect to the input,
-        weights, and biases based on the output gradients provided.
-        
+        Perform the backward pass of the convolutional layer by computing the gradients with
+        respect to the input, weights, and biases based on the output gradients provided.
+
         Args:
-            grad_output (ndarray): Gradient of the loss with respect to the output of this layer.
-        
-        Returns:
-            ndarray: Gradient of the loss with respect to the input of this layer.
+            grad_output: Gradient of the loss with respect to the output of this layer.
         """
-        batch_size, _, H_out, W_out = grad_output.shape  # Dimensions of the output gradients
-        dx = np.zeros_like(self.x)  # Initialize gradient w.r.t input
-        dw = np.zeros_like(self.weights)  # Initialize gradient w.r.t weights
-        db = np.zeros_like(self.biases)  # Initialize gradient w.r.t biases
+        _, _, output_height, output_width = grad_output.shape
+        x_grad = np.zeros_like(self.x)
+        self.weight_grad = np.zeros_like(self.weights)
+        self.bias_grad = np.zeros_like(self.biases)
 
-        for i in range(H_out):
-            for j in range(W_out):
-                h_start = i * self.stride  # Start index for height
-                h_end = h_start + self.kernel_size  # End index for height
-                w_start = j * self.stride  # Start index for width
-                w_end = w_start + self.kernel_size  # End index for width
-                for k in range(self.out_channels):
-                    x_slice = self.x[:, :, h_start:h_end, w_start:w_end]  # Extract slice
-                    dw[k] += np.sum(x_slice * grad_output[:, [k], i:i+1, j:j+1], axis=0)  # Compute weight gradient
-                    db[k] += np.sum(grad_output[:, k, i, j])  # Compute bias gradient
-                    dx[:, :, h_start:h_end, w_start:w_end] += self.weights[k] * grad_output[:, [k], i:i+1, j:j+1]  # Compute input gradient
+        for i in range(output_height):
+            for j in range(output_width):
+                h_start = i * self.stride
+                h_end = h_start + self.kernel_size
+                w_start = j * self.stride
+                w_end = w_start + self.kernel_size
+                for filter_index in range(self.out_channels):
+                    x_slice = self.x[:, :, h_start:h_end, w_start:w_end]
+                    self.weight_grad[filter_index] += np.sum(
+                        x_slice * grad_output[:, [filter_index], i:i+1, j:j+1],
+                        axis=0,
+                    )
+                    self.bias_grad[filter_index] += np.sum(grad_output[:, filter_index, i, j])
+                    x_grad[:, :, h_start:h_end, w_start:w_end] += self.weights[filter_index] * \
+                        grad_output[:, [filter_index], i:i+1, j:j+1]
 
         if self.padding != 0:
-            dx = dx[:, :, self.padding:-self.padding, self.padding:-self.padding]  # Remove padding from gradient
-        self.weight_grad = dw
-        self.bias_grad = db
-        return dx
+            # Remove padding from gradient because it was added during forward pass
+            x_grad = x_grad[:, :, self.padding:-self.padding, self.padding:-self.padding]
+        return x_grad
 
-    def _step(self, optimizer):
+    def _step(self, optimizer: callable) -> None:
         """
         Update the weights and biases using the computed gradients and the optimizer provided.
 
         Args:
-            optimizer (Callable): The optimizer function to use for updating the parameters.
+            optimizer: The optimizer function to use for updating the parameters.
         """
-        optimizer(self.weights, self.weight_grad)  # Apply gradient descent to weights
-        optimizer(self.biases, self.bias_grad)  # Apply gradient descent to biases
-        self._zero_grad()  # Reset gradients after update
+        optimizer(self.weights, self.weight_grad)
+        optimizer(self.biases, self.bias_grad)
+        self._zero_grad()
 
     def __str__(self) -> str:
         """String representation of the Conv2D layer."""
         return f"Conv2D({self.in_channels}, {self.out_channels}, kernel_size={self.kernel_size}, stride={self.stride}, padding={self.padding})"  # noqa
 
 
+@jit(nopython=True, parallel=True)
+def maxpool2d_backward(
+        grad_output: np.ndarray,
+        grad_input: np.ndarray,
+        input_data: np.ndarray,
+        latest_output: np.ndarray,
+        stride: int,
+        kernel_size: int,
+        out_height: int,
+        out_width: int,
+        ) -> None:
+    """
+    Perform the backward pass of the max pooling operation. The goal is to update `grad_input`
+    which is the gradient of the loss with respect to the input data. grad_input is expected
+    to be defined before calling this function and is modified in place.
+    """
+    for batch_index in prange(grad_output.shape[0]):  # Parallel execution over batches
+        for channel_index in prange(grad_output.shape[1]):  # Parallel execution over channels
+            for i in range(out_height):
+                for j in range(out_width):
+                    h_start = i * stride
+                    h_end = h_start + kernel_size
+                    w_start = j * stride
+                    w_end = w_start + kernel_size
+                    x_slice = input_data[batch_index, channel_index, h_start:h_end, w_start:w_end]
+                    mask = (x_slice == latest_output[batch_index, channel_index, i, j])
+                    grad_input[batch_index, channel_index, h_start:h_end, w_start:w_end] += \
+                        mask * grad_output[batch_index, channel_index, i, j]
+
 class MaxPool2D(Module):
-    def __init__(self, kernel_size, stride=None):
+    """
+    Max pooling layer. Subsamples the input by taking the maximum value in each region defined by
+    the kernel size and stride. This reduces the risk of overfitting and reduces the computational
+    load by reducing the number of parameters, computations, and memory usage in the network.
+    """
+
+    def __init__(self, kernel_size: int, stride: int | None = None):
+        """
+        Initialize the MaxPool2D layer.
+
+        Args:
+            kernel_size:
+                The size of the pooling region.
+            stride:
+                Stride of the pooling operation. If None, the stride is set to the kernel size,
+                which is the default behavior of PyTorch.
+        """
         super().__init__()
         self.kernel_size = kernel_size
         self.stride = stride if stride is not None else kernel_size
 
-    def forward(self, x):
-        self.input_shape = x.shape
-        self.input_data = x  # Save the actual input data for use in the backward pass
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """Perform the max pooling operation on the input data."""
         batch_size, channels, height, width = x.shape
         self.out_height = (height - self.kernel_size) // self.stride + 1
         self.out_width = (width - self.kernel_size) // self.stride + 1
-
-        # Prepare the output tensor
         output = np.zeros((batch_size, channels, self.out_height, self.out_width))
-
-        # Perform max pooling
         for i in range(self.out_height):
             for j in range(self.out_width):
                 h_start = i * self.stride
@@ -837,26 +924,25 @@ class MaxPool2D(Module):
                 w_end = w_start + self.kernel_size
                 x_slice = x[:, :, h_start:h_end, w_start:w_end]
                 output[:, :, i, j] = np.max(x_slice, axis=(2, 3))
-
-        # Save the output for gradient computation in backward pass
-        self.latest_output = output
+        if Module.training:
+            self.x = x
+            self.output = output
         return output
 
-    def backward(self, grad_output):
-        grad_input = np.zeros_like(self.input_data)  # Use the actual input data shape for gradient
-
-        for i in range(self.out_height):
-            for j in range(self.out_width):
-                h_start = i * self.stride
-                h_end = h_start + self.kernel_size
-                w_start = j * self.stride
-                w_end = w_start + self.kernel_size
-                for n in range(grad_output.shape[0]):  # Loop through batch size
-                    for c in range(grad_output.shape[1]):  # Loop through channels
-                        x_slice = self.input_data[n, c, h_start:h_end, w_start:w_end]
-                        mask = (x_slice == np.max(x_slice))
-                        grad_input[n, c, h_start:h_end, w_start:w_end] += mask * grad_output[n, c, i, j]
-
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        """Perform the backward pass of the max pooling layer."""
+        assert Module.training
+        grad_input = np.zeros_like(self.x)
+        maxpool2d_backward(
+            grad_output,
+            grad_input,
+            self.x,
+            self.output,
+            self.stride,
+            self.kernel_size,
+            self.out_height,
+            self.out_width,
+        )
         return grad_input
 
     def __str__(self):
@@ -864,15 +950,17 @@ class MaxPool2D(Module):
 
 
 class Flatten(Module):
-    def __init__(self):
-        super().__init__()
+    """Flatten layer to reshape the input to a 1D array."""
 
-    def forward(self, x):
-        self.input_shape = x.shape  # Save the input shape to reshape the gradient correctly in the backward pass
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """Forward pass of the Flatten layer."""
+        # Save the input shape to reshape the gradient correctly in the backward pass
+        self.input_shape = x.shape
         # Flatten the input except for the batch dimension
         return x.reshape(x.shape[0], -1)
 
-    def backward(self, grad_output):
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        """Backward pass of the Flatten layer."""
         # Reshape the gradient to the shape of the original input
         return grad_output.reshape(self.input_shape)
 

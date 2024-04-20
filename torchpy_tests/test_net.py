@@ -1,7 +1,6 @@
 """Tests the neural network modules in torchpy.net."""
 import numpy as np
 import pytest
-from numpy.random import default_rng
 from torchpy import net
 
 
@@ -431,7 +430,7 @@ def test_Conv2D_initialization():  # noqa
     assert np.allclose(layer.biases, np.zeros(2)), "Biases should be initialized to zero"
 
 def test_Conv2D_forward_pass():  # noqa
-    rng = default_rng(seed=42)
+    rng = np.random.default_rng(seed=42)
     expected_shape = (1, 1, 4, 4)
     input_tensor = rng.normal(loc=0, scale=1, size=expected_shape)
     layer = net.Conv2D(1, 1, 3, stride=1, padding=1, seed=42)
@@ -450,7 +449,7 @@ def conv_2d_numerical_grad_check(layer, input_tensor, grad_output, epsilon=1e-5)
     for i in range(input_tensor.shape[0]):
         for j in range(input_tensor.shape[1]):
             for k in range(input_tensor.shape[2]):
-                for l in range(input_tensor.shape[3]):
+                for l in range(input_tensor.shape[3]):  # noqa
                     # Perturb input tensor
                     old_val = input_tensor[i, j, k, l]
                     input_tensor[i, j, k, l] = old_val + epsilon
@@ -465,7 +464,7 @@ def conv_2d_numerical_grad_check(layer, input_tensor, grad_output, epsilon=1e-5)
 
 def test_Conv2D_backward_pass_numerically():  # noqa
     """This test performs numerical gradient checking for the Conv2D layer."""  # noqa: D404
-    rng = default_rng(seed=42)
+    rng = np.random.default_rng(seed=42)
     input_tensor = rng.normal(loc=0, scale=1, size=(1, 1, 4, 4))
     layer = net.Conv2D(1, 1, 3, stride=1, padding=1, seed=42)
     with net.training_mode():
@@ -475,7 +474,7 @@ def test_Conv2D_backward_pass_numerically():  # noqa
         conv_2d_numerical_grad_check(layer, input_tensor, grad_output)
 
 def test_Conv2D_parameter_update():  # noqa
-    rng = default_rng(seed=42)
+    rng = np.random.default_rng(seed=42)
     input_tensor = rng.normal(loc=0, scale=1, size=(1, 1, 4, 4))
     optimizer = net.SGD(learning_rate=0.01)
     layer = net.Conv2D(1, 1, 3, stride=1, padding=0, seed=42)
@@ -488,3 +487,85 @@ def test_Conv2D_parameter_update():  # noqa
         layer._step(optimizer)
     assert not np.array_equal(old_weights, layer.weights), "Weights should have been updated"
     assert not np.array_equal(old_biases, layer.biases), "Biases should have been updated"
+
+def test_MaxPool2D_forward_pass():  # noqa
+    layer = net.MaxPool2D(kernel_size=2, stride=2)
+    input_tensor = np.array([
+        [[1, 3, 2, 4],
+         [5, 6, 7, 8],
+         [9, 10, 11, 12],
+         [13, 14, 15, 16]],
+    ]).reshape(1, 1, 4, 4)  # Batch size 1, 1 channel, 4x4 input
+
+    output = layer.forward(input_tensor)
+    expected_output = np.array([
+        [[6, 8],
+         [14, 16]],
+    ]).reshape(1, 1, 2, 2)  # 2x2 output due to 2x2 kernel and stride 2
+
+    assert output.shape == (1, 1, 2, 2), "Output shape is incorrect"
+    assert np.array_equal(output, expected_output), "Max pooling result is incorrect"
+
+def max_2d_numerical_gradient_check(layer, input_tensor, grad_output, epsilon=1e-6):  # noqa
+    """
+    This function performs numerical gradient checking for the MaxPool2D layer. It perturbs the
+    input tensor by a small epsilon value and computes the approximate gradient of the loss with
+    respect to the input tensor. It then compares this numerical gradient with the analytical
+    gradient computed by the layer's backward method.
+    """  # noqa: D404
+    num_grad = np.zeros_like(input_tensor)
+    it = np.nditer(input_tensor, flags=['multi_index'], op_flags=['readwrite'])
+    while not it.finished:
+        ix = it.multi_index
+        old_value = input_tensor[ix]
+        # Increment by epsilon
+        input_tensor[ix] = old_value + epsilon
+        pos_output = layer.forward(input_tensor)
+        pos_loss = np.sum(pos_output * grad_output)
+        # Decrement by epsilon
+        input_tensor[ix] = old_value - epsilon
+        neg_output = layer.forward(input_tensor)
+        neg_loss = np.sum(neg_output * grad_output)
+        # Compute numerical gradient
+        num_grad[ix] = (pos_loss - neg_loss) / (2 * epsilon)
+        # Restore original value
+        input_tensor[ix] = old_value
+        it.iternext()
+    return num_grad
+
+def test_MaxPool2D_backward_pass_numerically():  # noqa
+    """This test performs numerical gradient checking for the MaxPool2D layer."""  # noqa
+    layer = net.MaxPool2D(kernel_size=2, stride=2)
+    rng = np.random.default_rng(seed=42)
+    input_tensor = rng.normal(loc=0, scale=1, size=(1, 1, 4, 4))
+    with net.training_mode():
+        output = layer.forward(input_tensor)
+        grad_output = rng.normal(loc=0, scale=1, size=output.shape)
+        # Calculate analytical backward pass
+        analytic_grad = layer.backward(grad_output)
+        # Calculate numerical gradients
+        num_grad = max_2d_numerical_gradient_check(layer, input_tensor, grad_output)
+    # Assert the closeness of analytical and numerical gradients
+    assert np.allclose(num_grad, analytic_grad, atol=1e-5), \
+        "Numerical and analytical gradient mismatch"
+
+def test_Flatten_forward_pass():  # noqa
+    rng = np.random.default_rng(seed=42)
+    input_tensor = rng.normal(loc=0, scale=1, size=(2, 3, 4, 5))
+    flatten = net.Flatten()
+    output = flatten.forward(input_tensor)
+    # Expected flattened shape (batch_size, product of other dimensions)
+    expected_shape = (2, 3 * 4 * 5)
+    assert output.shape == expected_shape, \
+        "Flatten forward pass did not produce the correct shape."
+
+def test_Flatten_backward_pass():  # noqa
+    rng = np.random.default_rng(seed=42)
+    input_tensor = rng.normal(loc=0, scale=1, size=(2, 3, 4, 5))
+    flatten = net.Flatten()
+    with net.training_mode():
+        _ = flatten.forward(input_tensor)
+        grad_output = rng.normal(loc=0, scale=1, size=(2, 3 * 4 * 5))
+        grad_input = flatten.backward(grad_output)
+    assert grad_input.shape == input_tensor.shape, \
+        "Flatten backward pass did not restore the gradient to the correct shape."

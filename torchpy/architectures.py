@@ -39,9 +39,9 @@ class MLP(net.Sequential):
         super().__init__(layers=layers)
 
 
-class CNN(net.Sequential):
+class CNNMnist(net.Sequential):
     """
-    Simple Convolutional Neural Network with dynamic number of layers.
+    Simple Convolutional Neural Network with dynamic number of layers for MNIST.
 
     Each hidden layer is initialied via he_init_scale and is followed by a BatchNorm layer and
     ReLU activation function. The output layer is initialized via glorot_init_scale and does not
@@ -49,21 +49,14 @@ class CNN(net.Sequential):
     """
 
     def __init__(self):
-        """
-        Initialize the CNN.
-
-        Args:
-            in_channels: Number of input channels.
-            out_features: Number of output features.
-            hidden_channels: List of hidden layer sizes.
-        """
+        """Initialize the CNN based on the MNIST dataset."""
         layers = [
             net.Conv2D(
-                in_channels=1,
-                out_channels=16,
-                kernel_size=3,
-                stride=1,
-                padding=1,
+                in_channels=1,  # MNIST has 1 channel i.e. grayscale images
+                out_channels=16,  # number of filters/kernels which is the same # of feature maps
+                kernel_size=3,  # size of the filter i.e. kernel
+                stride=1,  # step size of the filter
+                padding=1,  # padding to add to the input (all sides)
             ),
             net.ReLU(),
             net.MaxPool2D(kernel_size=2, stride=2),
