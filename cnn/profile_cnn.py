@@ -8,9 +8,8 @@ from sklearn.datasets import fetch_openml
 from sklearn.model_selection import train_test_split
 import pandas as pd
 from line_profiler import profile
-
-
 from torchpy import net
+
 
 @profile
 def main():
@@ -48,7 +47,6 @@ def main():
             y = y.to_numpy().astype(int)
         return x, y
 
-
     def get_data():  # noqa
         """Function is required by and called from `model_pipeline()`."""
         x, y = fetch_openml('mnist_784', version=1, return_X_y=True, parser='auto')
@@ -63,10 +61,8 @@ def main():
 
     x_train, x_val, x_test, y_train, y_val, y_test = get_data()
 
-
     learning_rate = 0.01
     batch_size = 32
-
 
     rng = np.random.default_rng(SEED)
     shuffle_index = rng.permutation(x_train.shape[0])
@@ -105,14 +101,12 @@ def main():
             print('done')
         training_losses.append(loss)
         # calculate validation loss
-        # print("val_loss")
-        # logits = model(x_val)
-        # val_loss = loss_function(logits=logits, targets=y_val)
-        # print("done val loss")
-        # validation_losses.append(val_loss)
-        # print(f"Epoch {epoch}, Batch {batch:04}, training loss {round(loss, 3)}, validation loss {round(val_loss, 3)}")  # noqa
-
-
+        print("val_loss")
+        logits = model(x_val)
+        val_loss = loss_function(logits=logits, targets=y_val)
+        print("done val loss")
+        validation_losses.append(val_loss)
+        print(f"Epoch {epoch}, Batch {batch:04}, training loss {round(loss, 3)}, validation loss {round(val_loss, 3)}")  # noqa
 
 
 if __name__ == '__main__':
