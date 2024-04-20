@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from textwrap import dedent
 from typing import Callable, ClassVar
 from contextlib import ContextDecorator
+from numba import jit, prange
+# from line_profiler import profile
 import numpy as np
 from numpy.random import default_rng
 
@@ -664,6 +666,23 @@ class SGD:
         """Update the parameters using the gradients and learning rate."""
         parameters -= self.learning_rate * grads
 
+@jit(nopython=True, parallel=True)
+def convolve(x, weights, biases, y, stride, kernel_size):
+    batch_size, in_channels, height, width = x.shape
+    out_channels, _, _, _ = weights.shape
+    H_out = (height - kernel_size) // stride + 1
+    W_out = (width - kernel_size) // stride + 1
+
+    for b in prange(batch_size):  # Parallel execution over batches
+        for k in prange(out_channels):  # Parallel execution over filters
+            for i in range(H_out):
+                for j in range(W_out):
+                    h_start = i * stride
+                    h_end = h_start + kernel_size
+                    w_start = j * stride
+                    w_end = w_start + kernel_size
+                    y[b, k, i, j] = np.sum(x[b, :, h_start:h_end, w_start:w_end] * weights[k, :, :, :]) + biases[k]
+
 
 class Conv2D(TrainableParamsModule):
     """A 2D Convolutional Layer class that performs convolution operations on the input data."""
@@ -704,6 +723,7 @@ class Conv2D(TrainableParamsModule):
         self.weight_grad = np.zeros_like(self.weights)  # Zero gradient array for weights
         self.bias_grad = np.zeros_like(self.biases)  # Zero gradient array for biases
 
+    # @profile
     def forward(self, x):
         """
         Perform the forward pass of the convolutional layer using the input data.
@@ -714,26 +734,34 @@ class Conv2D(TrainableParamsModule):
         Returns:
             ndarray: Output data after applying the convolution operation.
         """
-        self.x = np.pad(x, ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)), mode='constant')  # Pad the input
-        batch_size, _, H, W = self.x.shape  # Dimensions of the padded input
-        H_out = (H - self.kernel_size) // self.stride + 1  # Calculate output height
-        W_out = (W - self.kernel_size) // self.stride + 1  # Calculate output width
+        x = np.pad(x, ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)), mode='constant')  # Pad the input
+        batch_size, in_channels, height, width = x.shape
+        out_channels, _, _, _ = self.weights.shape
+        H_out = (height - self.kernel_size) // self.stride + 1
+        W_out = (width - self.kernel_size) // self.stride + 1
         y = np.zeros((batch_size, self.out_channels, H_out, W_out))  # Initialize output tensor
+        convolve(x, self.weights, self.biases, y, self.stride, self.kernel_size)
 
-        for i in range(H_out):
-            for j in range(W_out):
-                h_start = i * self.stride  # Start index for height slicing
-                h_end = h_start + self.kernel_size  # End index for height slicing
-                w_start = j * self.stride  # Start index for width slicing
-                w_end = w_start + self.kernel_size  # End index for width slicing
-                x_slice = self.x[:, :, h_start:h_end, w_start:w_end]  # Extract the relevant slice
-                for k in range(self.out_channels):  # Iterate over each filter
-                    y[:, k, i, j] = np.sum(x_slice * self.weights[k, :, :, :], axis=(1, 2, 3)) + self.biases[k]  # Convolve and add bias
+        # batch_size, _, H, W = self.x.shape  # Dimensions of the padded input
+        # H_out = (H - self.kernel_size) // self.stride + 1  # Calculate output height
+        # W_out = (W - self.kernel_size) // self.stride + 1  # Calculate output width
+
+        # for i in range(H_out):
+        #     for j in range(W_out):
+        #         h_start = i * self.stride  # Start index for height slicing
+        #         h_end = h_start + self.kernel_size  # End index for height slicing
+        #         w_start = j * self.stride  # Start index for width slicing
+        #         w_end = w_start + self.kernel_size  # End index for width slicing
+        #         x_slice = self.x[:, :, h_start:h_end, w_start:w_end]  # Extract the relevant slice
+        #         for k in range(self.out_channels):  # Iterate over each filter
+        #             y[:, k, i, j] = np.sum(x_slice * self.weights[k, :, :, :], axis=(1, 2, 3)) + self.biases[k]  # Convolve and add bias
 
         if Module.training:
+            self.x = x  # Store input for backpropagation
             self.output = y  # Store output for backpropagation
         return y
 
+    # @profile
     def backward(self, grad_output):
         """
         Perform the backward pass of the convolutional layer by computing the gradients with respect to the input,

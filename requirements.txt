@@ -1,6 +1,7 @@
 fastparquet
 matplotlib
 numpy
+numba
 pandas
 plotly
 plotly-express
