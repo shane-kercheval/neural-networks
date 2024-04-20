@@ -1,6 +1,7 @@
 """Tests the neural network modules in torchpy.net."""
 import numpy as np
 import pytest
+from numpy.random import default_rng
 from torchpy import net
 
 
@@ -22,7 +23,6 @@ def sequential_small() -> net.Sequential:
         net.Linear(input_features, output_features, seed=42),
         net.ReLU(),
     ])
-
 
 def test_linear_forward(linear_small):  # noqa
     rng = np.random.default_rng()
@@ -423,3 +423,68 @@ def test_batch_norm_backward_gradients():  # noqa
     assert np.allclose(layer.gamma_grad, num_grad_gamma, atol=1e-5), \
         f"Analytical gamma gradients do not match numerical gradients. " \
         f"Analytical: {layer.gamma_grad}, Numerical: {num_grad_gamma}"
+
+def test_Conv2D_initialization():  # noqa
+    layer = net.Conv2D(3, 2, 5, stride=1, padding=0, seed=42)
+    assert layer.weights.shape == (2, 3, 5, 5), "Weights initialized with incorrect shape"
+    assert layer.biases.shape == (2,), "Biases initialized with incorrect shape"
+    assert np.allclose(layer.biases, np.zeros(2)), "Biases should be initialized to zero"
+
+def test_Conv2D_forward_pass():  # noqa
+    rng = default_rng(seed=42)
+    expected_shape = (1, 1, 4, 4)
+    input_tensor = rng.normal(loc=0, scale=1, size=expected_shape)
+    layer = net.Conv2D(1, 1, 3, stride=1, padding=1, seed=42)
+    output = layer.forward(input_tensor)
+    assert output.shape == expected_shape, "Forward pass output shape is incorrect"
+
+def conv_2d_numerical_grad_check(layer, input_tensor, grad_output, epsilon=1e-5):  # noqa
+    """
+    This function performs numerical gradient checking for the Conv2D layer. It perturbs the input
+    tensor by a small epsilon value and computes the approximate gradient of the loss with respect
+    to the input tensor. It then compares this numerical gradient with the analytical gradient
+    computed by the layer's backward method.
+    """  # noqa: D404
+    approx_grad = np.zeros_like(input_tensor)
+    # Iterate over each element of the input tensor
+    for i in range(input_tensor.shape[0]):
+        for j in range(input_tensor.shape[1]):
+            for k in range(input_tensor.shape[2]):
+                for l in range(input_tensor.shape[3]):
+                    # Perturb input tensor
+                    old_val = input_tensor[i, j, k, l]
+                    input_tensor[i, j, k, l] = old_val + epsilon
+                    plus_loss = np.sum(layer.forward(input_tensor) * grad_output)
+                    input_tensor[i, j, k, l] = old_val - epsilon
+                    minus_loss = np.sum(layer.forward(input_tensor) * grad_output)
+                    # Approximate gradient
+                    approx_grad[i, j, k, l] = (plus_loss - minus_loss) / (2 * epsilon)
+                    input_tensor[i, j, k, l] = old_val  # Reset the value
+    assert np.allclose(approx_grad, layer.backward(grad_output), atol=1e-4), \
+        "Backward pass gradient check failed"
+
+def test_Conv2D_backward_pass_numerically():  # noqa
+    """This test performs numerical gradient checking for the Conv2D layer."""  # noqa: D404
+    rng = default_rng(seed=42)
+    input_tensor = rng.normal(loc=0, scale=1, size=(1, 1, 4, 4))
+    layer = net.Conv2D(1, 1, 3, stride=1, padding=1, seed=42)
+    with net.training_mode():
+        output = layer.forward(input_tensor)
+        # Grad output mimicking the next layer's gradient
+        grad_output = rng.normal(loc=0, scale=1, size=output.shape)
+        conv_2d_numerical_grad_check(layer, input_tensor, grad_output)
+
+def test_Conv2D_parameter_update():  # noqa
+    rng = default_rng(seed=42)
+    input_tensor = rng.normal(loc=0, scale=1, size=(1, 1, 4, 4))
+    optimizer = net.SGD(learning_rate=0.01)
+    layer = net.Conv2D(1, 1, 3, stride=1, padding=0, seed=42)
+    grad_output = rng.normal(loc=0, scale=1, size=(1, 1, 2, 2))  # Reduced size due to no padding
+    with net.training_mode():
+        _ = layer.forward(input_tensor)
+        _ = layer.backward(grad_output)
+        old_weights = np.copy(layer.weights)
+        old_biases = np.copy(layer.biases)
+        layer._step(optimizer)
+    assert not np.array_equal(old_weights, layer.weights), "Weights should have been updated"
+    assert not np.array_equal(old_biases, layer.biases), "Biases should have been updated"
