@@ -23,7 +23,7 @@ torchpy_linting:
 torchpy_unit_tests:
 	pytest torchpy_tests
 
-torchpy_tests: linting unit_tests
+torchpy_tests: torchpy_linting torchpy_unit_tests
 
 ####
 # torchcpp - Pytorch-like library for C++

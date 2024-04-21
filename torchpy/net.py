@@ -716,7 +716,8 @@ def convolve(
                     height_end = height_start + kernel_size
                     width_start = j * stride
                     width_end = width_start + kernel_size
-                    # this is basically what creates the image on pg 483 of Hands on ML
+                    # this is basically what creates the figure on pg 483 of Hands on ML showing
+                    # the receptive field of the filter
                     y[sample_index, filter_index, i, j] = np.sum(
                             x[sample_index, :, height_start:height_end, width_start:width_end] * \
                                 weights[filter_index, :, :, :],
@@ -814,8 +815,24 @@ class Conv2D(TrainableParamsModule):
         Perform the backward pass of the convolutional layer by computing the gradients with
         respect to the input, weights, and biases based on the output gradients provided.
 
+        The convolution operation is a sliding window calculation over the input where each
+        position of the window corresponds to a local region in the input that is multiplied by the
+        filter weights and summed up to produce an output. During backpropagation,we need to
+        compute:
+
+        - `∂L/∂x`:
+            The gradient of the loss with respect to the input (x), which is propagated back to
+            previous layers.
+        - `∂L/∂W`:
+            The gradient of the loss with respect to the filter weights.
+        - `∂L/∂b`:
+            The gradient of the loss with respect to the biases.
+
         Args:
-            grad_output: Gradient of the loss with respect to the output of this layer.
+            grad_output:
+                Gradient of the loss with respect to the output of this layer. This corresponds to
+                `∂L/∂y` in calculus terms, where `y` is the output of the forward pass of this
+                convolution layer.
         """
         _, _, output_height, output_width = grad_output.shape
         x_grad = np.zeros_like(self.x)
@@ -824,17 +841,21 @@ class Conv2D(TrainableParamsModule):
 
         for i in range(output_height):
             for j in range(output_width):
-                h_start = i * self.stride
-                h_end = h_start + self.kernel_size
-                w_start = j * self.stride
-                w_end = w_start + self.kernel_size
+                h_start = i * self.stride  # Start index for the height dimension
+                h_end = h_start + self.kernel_size  # End index for the height dimension
+                w_start = j * self.stride  # Start index for the width dimension
+                w_end = w_start + self.kernel_size  # End index for the width dimension
                 for filter_index in range(self.out_channels):
+                    # Extract the relevant receptive field from the input
                     x_slice = self.x[:, :, h_start:h_end, w_start:w_end]
+                    # Update the gradient of the weights
                     self.weight_grad[filter_index] += np.sum(
                         x_slice * grad_output[:, [filter_index], i:i+1, j:j+1],
                         axis=0,
                     )
+                    # Update the gradient of the biases
                     self.bias_grad[filter_index] += np.sum(grad_output[:, filter_index, i, j])
+                    # Update the gradient of the input
                     x_grad[:, :, h_start:h_end, w_start:w_end] += self.weights[filter_index] * \
                         grad_output[:, [filter_index], i:i+1, j:j+1]
 
