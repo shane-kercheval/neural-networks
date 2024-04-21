@@ -14,13 +14,17 @@ docker_rebuild:
 	docker compose -f docker-compose.yml build --no-cache
 
 ####
-# Project
+# torchpy - Pytorch-like library
 ####
-linting:
+torchpy_linting:
 	ruff check torchpy
 	ruff check torchpy_tests
 
-unit_tests:
+torchpy_unit_tests:
 	pytest torchpy_tests
 
-tests: linting unit_tests
+torchpy_tests: linting unit_tests
+
+####
+# torchcpp - Pytorch-like library for C++
+####
