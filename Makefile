@@ -28,3 +28,23 @@ torchpy_tests: linting unit_tests
 ####
 # torchcpp - Pytorch-like library for C++
 ####
+CPP_TESTS = ./torchcpp_tests
+CPP_SOURCE = ./torchcpp
+CXX = g++
+CXXFLAGS = -std=c++20 -Wall -I/usr/include/gtest/ -pthread
+# -Wall is to enable most warning messages from the compiler
+# -I is to include the gtest header files
+# -pthread is to enable POSIX threads which is required by gtest
+GTEST_LIB = -lgtest_main -lgtest
+# GTEST_LIB contains the linker flags to link against the Google Test libraries.
+# Here it links against gtest_main and gtest. The gtest_main library provides a main function that
+# runs all tests, so I don't need to define it.
+
+test_linear: $(CPP_TESTS)/test_linear.cpp $(CPP_SOURCE)/linear.h
+	$(CXX) $(CXXFLAGS) $(CPP_TESTS)/test_linear.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_linear
+	./$(CPP_TESTS)/test_linear
+
+clean_torchcpp:
+	rm -f $(CPP_TESTS)/test_linear
+
+all_tests: test_linear clean_torchcpp
