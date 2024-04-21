@@ -31,9 +31,9 @@ torchpy_tests: linting unit_tests
 CPP_TESTS = ./torchcpp_tests
 CPP_SOURCE = ./torchcpp
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -I/usr/include/gtest/ -pthread
+CXXFLAGS = -std=c++20 -Wall -I./ -I/usr/include/gtest/ -pthread
 # -Wall is to enable most warning messages from the compiler
-# -I is to include the gtest header files
+# -I is to add the include directory to the compiler's search path; we add the current directory and the Google Test include directory
 # -pthread is to enable POSIX threads which is required by gtest
 GTEST_LIB = -lgtest_main -lgtest
 # GTEST_LIB contains the linker flags to link against the Google Test libraries.
@@ -44,7 +44,12 @@ test_linear: $(CPP_TESTS)/test_linear.cpp $(CPP_SOURCE)/linear.h
 	$(CXX) $(CXXFLAGS) $(CPP_TESTS)/test_linear.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_linear
 	./$(CPP_TESTS)/test_linear
 
+test_utils: $(CPP_TESTS)/test_utils.cpp $(CPP_SOURCE)/torchcpp.h
+	$(CXX) $(CXXFLAGS) $(CPP_TESTS)/test_utils.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_utils
+	./$(CPP_TESTS)/test_utils
+
 clean_torchcpp:
 	rm -f $(CPP_TESTS)/test_linear
+	rm -f $(CPP_TESTS)/test_utils
 
-all_tests: test_linear clean_torchcpp
+torchcpp_tests: test_linear clean_torchcpp

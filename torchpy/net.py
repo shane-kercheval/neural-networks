@@ -141,7 +141,7 @@ def he_init_scale(in_features: int, _: int | None = None) -> float:
     prevents the signal from vanishing or exploding as it passes through the network.
 
     The factor is calculated as sqrt(2. / in_features) for ReLU activations, and sqrt(1. /
-    in_features) for other activations.
+    in_features) for other activations. We use the ReLU variant here.
 
     Args:
         in_features (int): Number of input features.
