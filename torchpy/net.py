@@ -539,15 +539,15 @@ class BatchNorm(TrainableParamsModule):
         rng = default_rng(seed)
         self.eps = 1e-8  # added to the variance to avoid dividing by zero
         self.momentum = momentum
-        # Parameters to be learned
+        # gamma and beta are learnable parameters of the layer
         # gamma is the scale parameter and allows the network to learn the optimal scale
-        # for each feature.
+        # for each feature
         # beta is the shift parameter and allows the network to learn the optimal mean for each
-        # feature.
+        # feature
         self.gamma = rng.normal(loc=1.0, scale=0.02, size=(1, num_features))
         self.beta = rng.normal(loc=0.0, scale=0.02, size=(1, num_features))
-        # Moving statistics, not to be learned, only updated during training and used during
-        # inference
+        # Moving statistics (not learnable parameters; only updated during training and used during
+        # inference)
         self.running_mean = np.zeros((1, num_features))
         self.running_var = np.ones((1, num_features))
         self.gamma_grad = None
