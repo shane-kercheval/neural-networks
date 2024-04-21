@@ -1,22 +1,29 @@
 FROM python:3.11
 
-# Install necessary commands for adding a PPA
+# Install necessary packages for building software
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     software-properties-common \
     zsh \
-    lsof
+    lsof \
+    gcc \
+    g++ \
+    make \
+    cmake \
+    libgtest-dev
+
+# Build and install Google Test
+RUN cd /usr/src/gtest && \
+    cmake CMakeLists.txt && \
+    make && \
+    cp lib/*.a /usr/lib
 
 # Set default shell to zsh (optional, depends on your preference)
-RUN echo "dash dash/sh boolean false" | debconf-set-selections && \
-    dpkg-reconfigure dash
-
-# Install GCC, G++ and make
-RUN apt-get install -y --no-install-recommends \
-    gcc g++ make
+RUN echo "dash dash/sh boolean false" | debconf-set-selections && dpkg-reconfigure dash
 
 # Clean up to reduce image size
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /code
 ENV PYTHONPATH "${PYTHONPATH}:/code"
