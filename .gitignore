@@ -160,3 +160,7 @@ cython_debug/
 #.idea/
 .vscode/settings.json
 .DS_Store
+data/train-labels-idx1-ubyte
+data/train-images-idx3-ubyte
+data/t10k-labels-idx1-ubyte
+data/t10k-images-idx3-ubyte
