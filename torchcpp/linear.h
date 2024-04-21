@@ -1,25 +1,15 @@
-// Calculator.h
-#pragma once
-#include <stdexcept>
+// #pragma once
+// #include "Module.h"
 
-class Calculator {
-public:
-    int add(int a, int b) {
-        return a + b;
-    }
+// class Linear : public Module {
+// private:
+//     Eigen::MatrixXd weights, biases;
+//     Eigen::MatrixXd weight_grad, bias_grad;
+//     Eigen::MatrixXd input_cache;  // for backward computation
 
-    int subtract(int a, int b) {
-        return a - b;
-    }
-
-    int multiply(int a, int b) {
-        return a * b;
-    }
-
-    double divide(int a, int b) {
-        if (b == 0) {
-            throw std::invalid_argument("Division by zero");
-        }
-        return static_cast<double>(a) / b;
-    }
-};
+// public:
+//     Linear(int in_features, int out_features);
+//     virtual Eigen::MatrixXd forward(const Eigen::MatrixXd& x) override;
+//     virtual Eigen::MatrixXd backward(const Eigen::MatrixXd& grad_output) override;
+//     virtual void step() override;
+// };

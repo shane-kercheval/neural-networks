@@ -40,19 +40,20 @@ GTEST_LIB = -lgtest_main -lgtest
 # Here it links against gtest_main and gtest. The gtest_main library provides a main function that
 # runs all tests, so I don't need to define it.
 
-test_module: $(CPP_TESTS)/test_module.cpp $(CPP_SOURCE)/module.h
-	$(CXX) $(CXXFLAGS) $(CPP_TESTS)/test_module.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_module
-	./$(CPP_TESTS)/test_module
+# test_module: $(CPP_TESTS)/test_module.cpp $(CPP_SOURCE)/module.h $(CPP_SOURCE)/module.cpp
+# 	$(CXX) $(CXXFLAGS) $(CPP_SOURCE)/module.cpp $(CPP_TESTS)/test_module.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_module
+# 	./$(CPP_TESTS)/test_module
 
-test_linear: $(CPP_TESTS)/test_linear.cpp $(CPP_SOURCE)/linear.h
-	$(CXX) $(CXXFLAGS) $(CPP_TESTS)/test_linear.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_linear
+test_linear: $(CPP_TESTS)/test_linear.cpp $(CPP_SOURCE)/linear.h $(CPP_SOURCE)/linear.cpp
+	$(CXX) $(CXXFLAGS) $(CPP_SOURCE)/linear.cpp $(CPP_TESTS)/test_linear.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_linear
 	./$(CPP_TESTS)/test_linear
 
-test_utils: $(CPP_TESTS)/test_utils.cpp $(CPP_SOURCE)/torchcpp.h
-	$(CXX) $(CXXFLAGS) $(CPP_TESTS)/test_utils.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_utils
+test_utils: $(CPP_TESTS)/test_utils.cpp $(CPP_SOURCE)/utils.h $(CPP_SOURCE)/utils.cpp
+	$(CXX) $(CXXFLAGS) $(CPP_SOURCE)/utils.cpp $(CPP_TESTS)/test_utils.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_utils
 	./$(CPP_TESTS)/test_utils
 
 clean_torchcpp:
+	rm -f $(CPP_TESTS)/test_module
 	rm -f $(CPP_TESTS)/test_linear
 	rm -f $(CPP_TESTS)/test_utils
 
