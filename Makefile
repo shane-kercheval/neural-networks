@@ -67,3 +67,14 @@ torchpp_lint:
 	done
 
 torchcpp_tests: test_linear test_utils clean_torchcpp
+
+
+download_mnist:
+	# Download MNIST dataset
+	curl -o /code/data/train-images-idx3-ubyte.gz http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz && \
+    curl -o /code/data/train-labels-idx1-ubyte.gz http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz && \
+    curl -o /code/data/t10k-images-idx3-ubyte.gz http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz && \
+    curl -o /code/data/t10k-labels-idx1-ubyte.gz http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz
+	# Unzip MNIST dataset
+	apt-get install -y gzip && \
+    gzip -d /code/data/*.gz
