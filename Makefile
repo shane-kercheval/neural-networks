@@ -66,8 +66,9 @@ torchpp_lint:
 		clang-tidy $$file -- -std=c++20 -I/usr/include/eigen3 -I./ ; \
 	done
 
-torchcpp_tests: test_linear test_utils clean_torchcpp
+torchcpp_unit_tests: test_linear test_utils clean_torchcpp
 
+torchcpp_tests: torchpp_lint torchcpp_unit_tests
 
 download_mnist:
 	# Download MNIST dataset
