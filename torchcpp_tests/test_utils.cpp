@@ -44,7 +44,7 @@ TEST(load_mnist_data, fails_on_invalid_path) {
         ),
         std::runtime_error
     );
-}   
+}
 
 TEST(EigenOperationExample, ElementWiseOperation_add) {
     Eigen::MatrixXd matrix_a(2, 2);
