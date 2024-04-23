@@ -18,6 +18,6 @@ namespace torchcpp_data {
         std::vector<int>& labels,
         const std::string& image_path,
         const std::string& label_path,
-        int num_images = -1
+        unsigned int num_images = 0
     );
 }

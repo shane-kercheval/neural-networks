@@ -10,9 +10,10 @@ RUN apt-get update && \
     g++ \
     make \
     cmake \
-    libgtest-dev\
+    curl \
+    libgtest-dev \
     libeigen3-dev \
-    curl
+    clang-tidy
 
 # Build and install Google Test
 RUN cd /usr/src/gtest && \

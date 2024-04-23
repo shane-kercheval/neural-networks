@@ -7,6 +7,10 @@ const int MAGIC_NUMBER_LABELS = 2049;
 const int MNIST_IMAGE_HEIGHT = 28;
 const int MNIST_IMAGE_WIDTH = 28;
 
+const double HE_FACTOR = 2.0;
+const double GLOROT_FACTOR = 6.0;
+const double MNIST_PIXEL_MAX = 255.0;
+
 
 namespace torchcpp {
 
@@ -26,7 +30,7 @@ namespace torchcpp {
         The scaling factor for the weights.
     */
     double he_init_scale(int in_features, int /*out_features*/) {
-        return std::sqrt(2.0 / in_features);
+        return std::sqrt(HE_FACTOR / in_features);
     }
 
     /**
@@ -44,7 +48,7 @@ namespace torchcpp {
         The scaling factor for the weights.
     */
     double glorot_init_scale(int in_features, int out_features) {
-        return std::sqrt(6.0 / (in_features + out_features));
+        return std::sqrt(GLOROT_FACTOR / (in_features + out_features));
     }
 
 }
@@ -76,14 +80,14 @@ namespace torchcpp_data {
     @param label_path
         The path to the MNIST labels.
     @param num_images
-        The number of images to load. The default is -1 which means all images will be loaded.
+        The number of images to load. The default is 0 which means all images will be loaded.
     */
     void load_mnist_data(
             std::vector<Eigen::VectorXd>& images,
             std::vector<int>& labels,
             const std::string& image_path,
             const std::string& label_path,
-            int num_images
+            unsigned int num_images
             ) {
         std::ifstream image_file(image_path, std::ios::binary);
         std::ifstream label_file(label_path, std::ios::binary);
@@ -97,10 +101,10 @@ namespace torchcpp_data {
         // Read the magic numbers for the images and labels
         // The magic numbers are the first 4 bytes of the file and are used to verify that we are
         // reading the correct file format.
-        int magic_number_images = 0;
-        int magic_number_labels = 0;
-        image_file.read(reinterpret_cast<char*>(&magic_number_images), sizeof(magic_number_images));
-        label_file.read(reinterpret_cast<char*>(&magic_number_labels), sizeof(magic_number_labels));
+        unsigned int magic_number_images = 0;
+        unsigned int magic_number_labels = 0;
+        image_file.read(reinterpret_cast<char*>(&magic_number_images), sizeof(magic_number_images));  // NOLINT
+        label_file.read(reinterpret_cast<char*>(&magic_number_labels), sizeof(magic_number_labels));  // NOLINT
         // Convert the magic number from big endian to little endian.
         // This conversion is necessary because the MNIST data format uses big endian, whereas most
         // computers use little endian. The __builtin_bswap32 is a GCC built-in function to swap
@@ -117,10 +121,10 @@ namespace torchcpp_data {
 
         // read the number of images and labels, which are 4 bytes each and are also in big endian
         // format.
-        int num_images_in_file = 0;
-        int num_labels_in_file = 0;
-        image_file.read(reinterpret_cast<char*>(&num_images_in_file), sizeof(num_images_in_file));
-        label_file.read(reinterpret_cast<char*>(&num_labels_in_file), sizeof(num_labels_in_file));
+        unsigned int num_images_in_file = 0;
+        unsigned int num_labels_in_file = 0;
+        image_file.read(reinterpret_cast<char*>(&num_images_in_file), sizeof(num_images_in_file));  // NOLINT
+        label_file.read(reinterpret_cast<char*>(&num_labels_in_file), sizeof(num_labels_in_file));  // NOLINT
         num_images_in_file = __builtin_bswap32(num_images_in_file);
         num_labels_in_file = __builtin_bswap32(num_labels_in_file);
 
@@ -128,7 +132,7 @@ namespace torchcpp_data {
         if (num_images_in_file != num_labels_in_file || num_images_in_file == 0) {
             throw std::runtime_error("Invalid MNIST data files!");
         }
-        if (num_images == -1 || num_images > num_images_in_file) {
+        if (num_images == 0 || num_images > num_images_in_file) {
             num_images = num_images_in_file;
         }
         // preallocate the memory for the images and labels rather than resizing the vectors each
@@ -139,16 +143,16 @@ namespace torchcpp_data {
         // read the images and labels
         // define an Eigen vector to hold the pixels of an image
         Eigen::VectorXd image(MNIST_IMAGE_HEIGHT * MNIST_IMAGE_WIDTH);
-        for (int i = 0; i < num_images; ++i) {
+        for (unsigned int i = 0; i < num_images; ++i) {
             unsigned char temp = 0;
 
-            label_file.read(reinterpret_cast<char*>(&temp), sizeof(temp));
+            label_file.read(reinterpret_cast<char*>(&temp), sizeof(temp));  // NOLINT
             labels.push_back(static_cast<int>(temp));
             // read the pixels of the image
             for (int p = 0; p < MNIST_IMAGE_HEIGHT * MNIST_IMAGE_WIDTH; ++p) {
-                image_file.read(reinterpret_cast<char*>(&temp), sizeof(temp));
+                image_file.read(reinterpret_cast<char*>(&temp), sizeof(temp));  // NOLINT
                 // normalize the pixel values to be between 0 and 1
-                image(p) = static_cast<double>(temp) / 255.0;
+                image(p) = static_cast<double>(temp) / MNIST_PIXEL_MAX;
             }
             images.push_back(image);
         }

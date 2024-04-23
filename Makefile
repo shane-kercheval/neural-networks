@@ -28,17 +28,21 @@ torchpy_tests: torchpy_linting torchpy_unit_tests
 ####
 # torchcpp - Pytorch-like library for C++
 ####
-CPP_TESTS = ./torchcpp_tests
 CPP_SOURCE = ./torchcpp
+CPP_TESTS = ./torchcpp_tests
+CPP_SOURCE_FILES := $(shell find $(CPP_SOURCE) -name '*.cpp')
+CPP_TEST_FILES := $(shell find $(CPP_TESTS) -name '*.cpp')
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -I./ -I/usr/include/gtest/ -pthread -I/usr/include/eigen3
+
 # -Wall is to enable most warning messages from the compiler
 # -I is to add the include directory to the compiler's search path; we add the current directory and the Google Test include directory
 # -pthread is to enable POSIX threads which is required by gtest
-GTEST_LIB = -lgtest_main -lgtest
+CXXFLAGS = -std=c++20 -Wall -I./ -I/usr/include/gtest/ -pthread -I/usr/include/eigen3
+
 # GTEST_LIB contains the linker flags to link against the Google Test libraries.
 # Here it links against gtest_main and gtest. The gtest_main library provides a main function that
 # runs all tests, so I don't need to define it.
+GTEST_LIB = -lgtest_main -lgtest
 
 # test_module: $(CPP_TESTS)/test_module.cpp $(CPP_SOURCE)/module.h $(CPP_SOURCE)/module.cpp
 # 	$(CXX) $(CXXFLAGS) $(CPP_SOURCE)/module.cpp $(CPP_TESTS)/test_module.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_module
@@ -56,5 +60,10 @@ clean_torchcpp:
 	rm -f $(CPP_TESTS)/test_module
 	rm -f $(CPP_TESTS)/test_linear
 	rm -f $(CPP_TESTS)/test_utils
+
+torchpp_lint:
+	for file in $(CPP_SOURCE_FILES) $(CPP_TEST_FILES) ; do \
+		clang-tidy $$file -- -std=c++20 -I/usr/include/eigen3 -I./ ; \
+	done
 
 torchcpp_tests: test_linear test_utils clean_torchcpp

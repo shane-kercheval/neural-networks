@@ -2,7 +2,6 @@
 #include "torchcpp/torchcpp.h"
 #include <Eigen/Dense>
 
-
 // Testing He initialization scale
 TEST(UtilsTest, he_init_scale) {
     int ignored = 0;
@@ -69,8 +68,6 @@ TEST(EigenOperationExample, ElementWiseOperation_add_row_wise) {
     expected << 4, 6;
     Eigen::VectorXd actual = matrix_a.rowwise().sum();
 }
-
-
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
