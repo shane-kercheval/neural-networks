@@ -671,6 +671,7 @@ class SGD:
         """Update the parameters using the gradients and learning rate."""
         parameters -= self.learning_rate * grads
 
+
 @jit(nopython=True)
 def _feature_map_dimensions(
         height: int,
@@ -693,6 +694,7 @@ def _feature_map_dimensions(
     output_height = ((height - kernel_size) // stride) + 1
     output_width = ((width - kernel_size) // stride) + 1
     return output_height, output_width
+
 
 @jit(nopython=True, parallel=True)
 def convolve(
@@ -913,6 +915,7 @@ def maxpool2d_backward(
                     mask = (x_slice == latest_output[batch_index, channel_index, i, j])
                     grad_input[batch_index, channel_index, h_start:h_end, w_start:w_end] += \
                         mask * grad_output[batch_index, channel_index, i, j]
+
 
 class MaxPool2D(Module):
     """
