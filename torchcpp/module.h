@@ -10,7 +10,10 @@ namespace torchcpp {
      */
     class Module {
     public:
-        inline static bool training = false;
+        inline static bool training = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+        Module() = default; // default constructor
+        virtual ~Module() = default;  // default destructor
 
         /**
          * @brief Perform the forward pass of the module.
@@ -83,7 +86,17 @@ namespace torchcpp {
             return forward(x);
         }
 
-        virtual ~Module() = default;  // default destructor
+        // for now, we will disable copy and move operations for all modules; i'd like to
+        // understand when they would be used before enabling them.
+        // copy constructor
+        Module(const Module& other) = delete;
+        // copy assignment operator
+        Module& operator=(const Module& other) = delete;
+        // move constructor
+        Module(Module&& other) noexcept = delete;
+        // move assignment operator
+        Module& operator=(Module&& other) noexcept = delete;
+
     private:
         virtual Eigen::MatrixXd backward_impl(const Eigen::MatrixXd& grad_output) = 0;
         /**
@@ -109,11 +122,20 @@ namespace torchcpp {
      */
     class USING_TRAINING_MODE {
     public:
+        // constructor
         USING_TRAINING_MODE() {
             Module::training = true;
         }
+        // destructor
         ~USING_TRAINING_MODE() {
             Module::training = false;
         }
+    
+        // for now, we will disable copy and move operations for all modules; i'd like to
+        // understand when they would be used before enabling them.
+        USING_TRAINING_MODE(const USING_TRAINING_MODE& other) = delete;  // copy Constructor
+        USING_TRAINING_MODE& operator=(const USING_TRAINING_MODE& other) = delete;  // copy assignment operator
+        USING_TRAINING_MODE(USING_TRAINING_MODE&& other) noexcept = delete;  // move constructor
+        USING_TRAINING_MODE& operator=(USING_TRAINING_MODE&& other) noexcept = delete;  // move assignment operator
     };
 }

@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
-#include <torchcpp/torchcpp.h>
-#include <torchcpp_tests/test_helpers.h>
+#include "torchcpp.h"
+#include "test_helpers.h"
 
 
 TEST(ModuleTests, training_model_is_correctly_toggled) {

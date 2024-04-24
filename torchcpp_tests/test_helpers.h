@@ -1,5 +1,5 @@
 #include <Eigen/Dense>
-#include <torchcpp/torchcpp.h>
+#include "torchcpp.h"
 
 namespace tests {
 

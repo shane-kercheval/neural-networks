@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../torchcpp/linear.h"
+#include "torchcpp.h"
 // #include "../torchcpp/utils.h"
 
 // class CalculatorTest : public ::testing::Test {

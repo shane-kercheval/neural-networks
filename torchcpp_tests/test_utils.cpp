@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "torchcpp/torchcpp.h"
+#include "torchcpp.h"
 #include <Eigen/Dense>
 
 // Testing He initialization scale
