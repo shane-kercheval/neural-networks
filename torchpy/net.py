@@ -24,7 +24,7 @@ class training_mode(ContextDecorator):  # noqa: N801
 
 
 class Module(ABC):
-    """Base class for all neural network modules."""
+    """Base class for all neural network components/modules."""
 
     training: ClassVar[bool] = False
 
@@ -40,9 +40,12 @@ class Module(ABC):
     @abstractmethod
     def backward(self, grad_output: np.ndarray) -> np.ndarray:
         """
+        Perform the backward pass of the module, calculating/returning the gradient with respect
+        to input.
+
         Backpropagation is essentially an application of the chain rule, used to compute gradient
         of a loss function with respect to the weights and biases of a neural network. The
-        gradient tell us how much (and in which direction) each parameter affects the loss
+        gradient tells us how much (and in which direction) each parameter affects the loss
         function (which we hope to minimize). Each layer's backward pass computes the gradients
         (i.e. the partial derivatives) of the loss function relative to its inputs and parameters,
         using the gradient that flows back from the subsequent layers.
@@ -57,14 +60,12 @@ class Module(ABC):
         output of the layer. This is calculated in the subsequent layer (or directly from the loss
         function if it's the final layer) and passed back to this layer.
 
-        ∂a/∂z is the derivative of the activation function, which is often straightforward to
-        compute (e.g., for ReLU, sigmoid).
+        ∂a/∂z is the gradient of the output with respect to the activation function, which is often
+        straightforward to compute (e.g., for ReLU, sigmoid).
 
-        ∂z/∂W is the derivative of the layer's output with respect to its weights, which typically
+        ∂z/∂W is the gradient of the layer's output with respect to its weights, which typically
         involves the input to the layer, depending on whether it's fully connected, convolutional,
         etc.
-
-        Perform the backward pass of the module, calculating gradient with respect to input.
 
         Args:
             grad_output: Gradient of the loss with respect to the output of this module.
@@ -72,18 +73,22 @@ class Module(ABC):
         Returns:
             np.ndarray: Gradient of the loss with respect to the input of this module.
         """
-        raise NotImplementedError
 
     def step(self, optimizer: Callable[[np.ndarray, np.ndarray], None]) -> None:
         """
         Update the parameters of the module using the gradient computed during
         backpropagation and the optimizer provided.
 
-        Only applicable to modules that require gradient computation (GradientModule) but needs to
-        be defined in the base class to avoid checking the type of module in the training loop.
+        Only applicable to modules that require gradient computation (TrainableParamsModule) but
+        needs to be defined in the base class to avoid checking the type of module in the training
+        loop.
 
         Args:
-            optimizer (callable): The optimizer to use for updating the weights and biases.
+            optimizer (callable):
+                The optimizer to use for updating the weights and biases. The optimizer is a
+                function that takes the parameters (of the Module) as the first function parameter
+                and the gradients as the second function parameter and updates the Module
+                parameters.
         """
 
     def __call__(self, x: np.ndarray) -> np.ndarray:

@@ -44,9 +44,9 @@ CXXFLAGS = -std=c++20 -Wall -I./ -I/usr/include/gtest/ -pthread -I/usr/include/e
 # runs all tests, so I don't need to define it.
 GTEST_LIB = -lgtest_main -lgtest
 
-# test_module: $(CPP_TESTS)/test_module.cpp $(CPP_SOURCE)/module.h $(CPP_SOURCE)/module.cpp
-# 	$(CXX) $(CXXFLAGS) $(CPP_SOURCE)/module.cpp $(CPP_TESTS)/test_module.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_module
-# 	./$(CPP_TESTS)/test_module
+test_module: $(CPP_TESTS)/test_module.cpp $(CPP_SOURCE)/module.h $(CPP_SOURCE)/module.cpp
+	$(CXX) $(CXXFLAGS) $(CPP_SOURCE)/module.cpp $(CPP_TESTS)/test_module.cpp $(CPP_TESTS)/test_helpers.h $(GTEST_LIB) -o $(CPP_TESTS)/test_module
+	./$(CPP_TESTS)/test_module
 
 test_linear: $(CPP_TESTS)/test_linear.cpp $(CPP_SOURCE)/linear.h $(CPP_SOURCE)/linear.cpp
 	$(CXX) $(CXXFLAGS) $(CPP_SOURCE)/linear.cpp $(CPP_TESTS)/test_linear.cpp $(GTEST_LIB) -o $(CPP_TESTS)/test_linear
@@ -66,7 +66,7 @@ torchpp_lint:
 		clang-tidy $$file -- -std=c++20 -I/usr/include/eigen3 -I./ ; \
 	done
 
-torchcpp_unit_tests: test_linear test_utils clean_torchcpp
+torchcpp_unit_tests: test_module test_utils test_linear clean_torchcpp
 
 torchcpp_tests: torchpp_lint torchcpp_unit_tests
 
