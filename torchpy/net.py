@@ -206,7 +206,7 @@ class Linear(TrainableParamsModule):
         self._zero_grad()
 
     def _zero_grad(self) -> None:
-        """Clear the gradient of the layer."""
+        """Clear the gradients of the layer."""
         self.weight_grad = None
         self.bias_grad = None
 
