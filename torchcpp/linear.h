@@ -7,7 +7,7 @@ using Eigen::MatrixXd;
 
 namespace torchcpp {
 
-const int DEFAULT_SEED = 42;
+const unsigned DEFAULT_SEED = 42;
 
 /** Linear (fully connected) layer. */
 class Linear : public Module {

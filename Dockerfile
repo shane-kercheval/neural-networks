@@ -8,6 +8,7 @@ RUN apt-get update && \
     lsof \
     gcc \
     g++ \
+    gdb \
     make \
     cmake \
     curl \

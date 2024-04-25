@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Selected Executable",
+            "type": "cppdbg",
+            "request": "launch",
+            // The program specified here is dynamically retrieved using the CMake Tools extension.
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            // The preLaunchTask is used to build the project using the CMake build task before debugging.
+            "preLaunchTask": "CMake: build",
+            "miDebuggerPath": "gdb"
+        }
+    ]
+}

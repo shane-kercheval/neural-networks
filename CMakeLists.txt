@@ -23,9 +23,7 @@ target_compile_features(torchcpp_lib PUBLIC cxx_std_20)
 
 # Include directories for the library: sets the directories that the compiler uses to search for
 # header files. PUBLIC here affects both the library and any targets that link against it.
-target_include_directories(torchcpp_lib PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp
-)
+target_include_directories(torchcpp_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp)
 
 # ensure torchcpp.h is also installed or made available
 # sets properties for the target; in this case it designates torchcpp.h as a public header for the library.
