@@ -7,6 +7,15 @@
 - see `Makefile` for general idea of how to run projects, compile code, etc.
 - Dockerfile/compose used for reproducibility
 
+## Python Implementation
+
+- `torchpy` and `torchpy_tests` contain python classes for neural network components (e.g. Module, Linear, RelU)
+
+## C++ Implementation
+
+- `torchcpp` and `torchcpp_tests` contain C++ classes for neural network components (e.g. Module, Linear, RelU)
+
+
 # Attribution
 
 - https://github.com/karpathy/makemore

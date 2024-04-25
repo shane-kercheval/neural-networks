@@ -51,7 +51,7 @@ compile: setup_build_dir
 	$(MAKE) -C $(BUILD_DIR)
 
 # run linting
-torchpp_lint:
+torchpp_lint: all
 	clang-tidy $(SOURCE_FILES) $(TEST_FILES) -p build/
 # torchpp_lint:
 # 	for file in $(SOURCE_FILES) $(TEST_FILES) ; do \
@@ -59,13 +59,13 @@ torchpp_lint:
 # 	done
 
 # Run tests using CTest
-torchcpp_unit_tests: compile
+torchcpp_unit_tests: all
 	cd $(BUILD_DIR) && ctest
 
-torchcpp_tests: all torchpp_lint torchcpp_unit_tests
+torchcpp_tests: torchpp_lint torchcpp_unit_tests
 
 # Run the Multilayer Perceptron (MLP) executable
-torchcpp_run_mlp: build
+torchcpp_run_mlp: all
 	./$(BUILD_DIR)/torchcpp_mlp
 
 # Clean up the build directory

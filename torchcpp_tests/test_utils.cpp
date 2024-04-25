@@ -13,9 +13,8 @@ TEST(UtilsTest, glorot_init_scale) {
     EXPECT_NEAR(torchcpp::glorot_init_scale(8, 12), std::sqrt(6.0 / (8 + 12)), 0.001);
 }
 
-// Testing MNIST data loading
 TEST(load_mnist_data, data_loads_successfully) {
-    std::vector<Eigen::VectorXd> images;
+    Eigen::MatrixXd images;
     std::vector<int> labels;
     torchcpp_data::load_mnist_data(
         images,
@@ -24,15 +23,33 @@ TEST(load_mnist_data, data_loads_successfully) {
         "data/train-labels-idx1-ubyte",
         1000
     );
-    EXPECT_EQ(images.size(), 1000);
+    EXPECT_EQ(images.rows(), 1000);
+    EXPECT_EQ(images.cols(), 28 * 28);
     EXPECT_EQ(labels.size(), 1000);
-    EXPECT_EQ(images[0].size(), 28 * 28);
-    EXPECT_EQ(labels[0], 5);  // First label in the MNIST dataset
-    EXPECT_EQ(labels[1], 0);  // Second label in the MNIST dataset
+    EXPECT_EQ(labels[0], 5);  // First label in the MNIST training dataset
+    EXPECT_EQ(labels[1], 0);  // Second label in the MNIST training dataset
+}
+
+TEST(load_mnist_data, data_loads_successfully_all_images) {
+    Eigen::MatrixXd images;
+    std::vector<int> labels;
+    // not specifying the number of images to load should load all images
+    torchcpp_data::load_mnist_data(
+        images,
+        labels,
+        "data/t10k-images-idx3-ubyte",
+        "data/t10k-labels-idx1-ubyte"
+    );
+    std::cout << images.rows() << std::endl;
+    EXPECT_EQ(images.rows(), 10000);
+    EXPECT_EQ(images.cols(), 28 * 28);
+    EXPECT_EQ(labels.size(), 10000);
+    EXPECT_EQ(labels[0], 7);  // First label in the MNIST test dataset
+    EXPECT_EQ(labels[1], 2);  // Second label in the MNIST test dataset
 }
 
 TEST(load_mnist_data, fails_on_invalid_path) {
-    std::vector<Eigen::VectorXd> images;
+    Eigen::MatrixXd images;
     std::vector<int> labels;
     EXPECT_THROW(
         torchcpp_data::load_mnist_data(

@@ -13,7 +13,6 @@ add_compile_options(-Wall)
 add_library(torchcpp_lib)
 target_sources(torchcpp_lib
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/module.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/linear.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/utils.cpp
 )

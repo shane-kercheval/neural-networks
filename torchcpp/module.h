@@ -20,7 +20,7 @@ namespace torchcpp {
          *
          * @param x The input data.
          * @return The computed output.
-         */
+        */
         virtual Eigen::MatrixXd forward(const Eigen::MatrixXd& x) = 0;  // = 0 means pure virtual function in C++ which means that the derived class must implement the function.
         
         /**
@@ -53,7 +53,7 @@ namespace torchcpp {
          *
          * @param grad_output Gradient of the loss with respect to the output of this module.
          * @return Gradient of the loss with respect to the input of this module.
-         */
+        */
         Eigen::MatrixXd backward(const Eigen::MatrixXd& grad_output) {
             if (!training) {
                 throw std::logic_error("Module::backward should only be called during training");
@@ -72,7 +72,7 @@ namespace torchcpp {
          * @param optimizer The optimizer to use for updating the weights and biases. The optimizer
          * is a function that takes the parameters (of the Module) as the first function parameter
          * and the gradients as the second function parameter and updates the Module parameters.
-         */
+        */
         void step(const std::function<void(Eigen::MatrixXd&, Eigen::MatrixXd&)>& optimizer) {
             if (!training) {
                 throw std::logic_error("Module::step should only be called during training");
@@ -93,11 +93,14 @@ namespace torchcpp {
         // copy assignment operator
         Module& operator=(const Module& other) = delete;
         // move constructor
+        // by marking these functions as noexcept, we're indicating that they won't throw exceptions.
+        // This is important for maintaining strong exception safety (i.e., the program remains in
+        // a valid state and no resources are leaked if an exception is thrown).
         Module(Module&& other) noexcept = delete;
         // move assignment operator
         Module& operator=(Module&& other) noexcept = delete;
 
-    private:
+    protected:
         virtual Eigen::MatrixXd backward_impl(const Eigen::MatrixXd& grad_output) = 0;
         /**
          * @brief Update the parameters of the module using the gradient computed during
@@ -108,18 +111,18 @@ namespace torchcpp {
          * function (only those that have parameters that need to be updated). However, all modules
          * will inherit this function so that the training loop can call it without knowing whether
          * the module has parameters or not.
-         */
+        */
         virtual void step_imp(const std::function<void(Eigen::MatrixXd&, Eigen::MatrixXd&)>& optimizer) {}
         /**
          * Zero the gradients of the parameters of the module. Models that require gradient
          * computation should override this method.
-         */
+        */
         virtual void zero_grad() {}
     };
 
     /**
      * A context manager to set the module in training mode temporarily.
-     */
+    */
     class USING_TRAINING_MODE {
     public:
         // constructor

@@ -50,14 +50,18 @@ namespace torchcpp_data {
      * )
      * @endcode
      *
-     * @param images A vector of Eigen vectors where each vector will hold the pixels of an MNIST image.
-     * @param labels A single vector of integers where the MNIST labels will be stored correpsonding to each image in the images vector.
+     * @param images A matrx where each row will hold the pixels of an MNIST image and each column
+     * will be a pixel value. So there will be 28 * 28 = 784 columns and the number of rows will be
+     * equal to the number of images loaded.
+     * @param labels A single vector of integers where the MNIST labels will be stored
+     * correpsonding to each image in the images vector.
      * @param image_path The path to the MNIST images.
      * @param label_path The path to the MNIST labels.
-     * @param num_images The number of images to load. The default is 0 which means all images will be loaded.
+     * @param num_images The number of images to load. The default is 0 which means all images
+     * will be loaded.
      */
     void load_mnist_data(
-        std::vector<Eigen::VectorXd>& images,
+        Eigen::MatrixXd& images,
         std::vector<int>& labels,
         const std::string& image_path,
         const std::string& label_path,

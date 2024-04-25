@@ -27,7 +27,7 @@ namespace torchcpp {
 namespace torchcpp_data {
 
     void load_mnist_data(
-            std::vector<Eigen::VectorXd>& images,
+            Eigen::MatrixXd& images,
             std::vector<int>& labels,
             const std::string& image_path,
             const std::string& label_path,
@@ -47,8 +47,8 @@ namespace torchcpp_data {
         // reading the correct file format.
         unsigned int magic_number_images = 0;
         unsigned int magic_number_labels = 0;
-        image_file.read(reinterpret_cast<char*>(&magic_number_images), sizeof(magic_number_images));  // NOLINT
-        label_file.read(reinterpret_cast<char*>(&magic_number_labels), sizeof(magic_number_labels));  // NOLINT
+        image_file.read(reinterpret_cast<char*>(&magic_number_images), sizeof(magic_number_images));  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        label_file.read(reinterpret_cast<char*>(&magic_number_labels), sizeof(magic_number_labels));  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         // Convert the magic number from big endian to little endian.
         // This conversion is necessary because the MNIST data format uses big endian, whereas most
         // computers use little endian. The __builtin_bswap32 is a GCC built-in function to swap
@@ -67,8 +67,8 @@ namespace torchcpp_data {
         // format.
         unsigned int num_images_in_file = 0;
         unsigned int num_labels_in_file = 0;
-        image_file.read(reinterpret_cast<char*>(&num_images_in_file), sizeof(num_images_in_file));  // NOLINT
-        label_file.read(reinterpret_cast<char*>(&num_labels_in_file), sizeof(num_labels_in_file));  // NOLINT
+        image_file.read(reinterpret_cast<char*>(&num_images_in_file), sizeof(num_images_in_file));  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        label_file.read(reinterpret_cast<char*>(&num_labels_in_file), sizeof(num_labels_in_file));  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         num_images_in_file = __builtin_bswap32(num_images_in_file);
         num_labels_in_file = __builtin_bswap32(num_labels_in_file);
 
@@ -79,26 +79,21 @@ namespace torchcpp_data {
         if (num_images == 0 || num_images > num_images_in_file) {
             num_images = num_images_in_file;
         }
-        // preallocate the memory for the images and labels rather than resizing the vectors each
-        // time we read an image in the for loop below.
-        images.reserve(num_images);
-        labels.reserve(num_images);
+        // preallocate the memory for the images and labels
+        images.resize(num_images, MNIST_IMAGE_HEIGHT * MNIST_IMAGE_WIDTH);
+        labels.resize(num_images);
 
         // read the images and labels
-        // define an Eigen vector to hold the pixels of an image
-        Eigen::VectorXd image(MNIST_IMAGE_HEIGHT * MNIST_IMAGE_WIDTH);
+        unsigned char temp = 0;
         for (unsigned int i = 0; i < num_images; ++i) {
-            unsigned char temp = 0;
-
-            label_file.read(reinterpret_cast<char*>(&temp), sizeof(temp));  // NOLINT
-            labels.push_back(static_cast<int>(temp));
-            // read the pixels of the image
+            label_file.read(reinterpret_cast<char*>(&temp), sizeof(temp));  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+            labels[i] = static_cast<int>(temp);
+            // for each image, read each pixel value and normalize it to be between 0 and 1
+            // store it in the ith row of the images matrix
             for (int p = 0; p < MNIST_IMAGE_HEIGHT * MNIST_IMAGE_WIDTH; ++p) {
-                image_file.read(reinterpret_cast<char*>(&temp), sizeof(temp));  // NOLINT
-                // normalize the pixel values to be between 0 and 1
-                image(p) = static_cast<double>(temp) / MNIST_PIXEL_MAX;
+                image_file.read(reinterpret_cast<char*>(&temp), sizeof(temp));  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+                images(i, p) = static_cast<double>(temp) / MNIST_PIXEL_MAX;
             }
-            images.push_back(image);
         }
     }
 }
