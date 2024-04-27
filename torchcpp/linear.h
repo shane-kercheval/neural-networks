@@ -104,7 +104,7 @@ protected:
     */
     void step_imp(const std::function<void(MatrixXd&, MatrixXd&)>& optimizer) override;
 
-private:
+protected:
     int in_features_;
     int out_features_;
     MatrixXd weights_;

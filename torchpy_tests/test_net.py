@@ -34,7 +34,6 @@ def test_linear_backward(linear_small):  # noqa
     rng = np.random.default_rng()
     x = rng.standard_normal((2, 4))  # batch_size=2, input_features=4
     grad_output = rng.standard_normal((2, 3))  # batch_size=2, output_features=3
-
     # Enter training mode
     with net.training_mode():
         linear.forward(x)  # Necessary to cache input in `x` for gradient computation
@@ -72,8 +71,8 @@ def test_linear_very_small_numbers(linear_small):  # noqa
 
 def test_linear_gradient_using_numerical_approximation(linear_small):  # noqa
     """
-    Test to perform numerical gradient checking on a Linear layer.
-    Gradient checking is a technique to approximate the gradient computed by backpropagation
+    Test to perform numerical gradient checking on a Linear layer via numerical approximation.
+    This is a technique to approximate the gradient computed by backpropagation
     and compare it with the gradient calculated using a numerical approximation method.
     This test ensures the backpropagation implementation is correct.
     """
@@ -82,30 +81,29 @@ def test_linear_gradient_using_numerical_approximation(linear_small):  # noqa
     rng = np.random.default_rng()
     x = rng.standard_normal((3, 4))  # single data point with 4 features
     eps = 1e-4  # a small number to move the weights
-
     # Compute the original output of the layer to be used in gradient computation
     original_output = linear(x)
+    fake_grad_output = np.ones_like(original_output)  # fake gradient from the next layer
     # Enter training mode
     with net.training_mode():
         for i in range(linear.weights.shape[0]):  # loop over rows of the weights matrix
             for j in range(linear.weights.shape[1]):  # loop over columns
-                old_value = linear.weights[i, j]
+                original_weight = linear.weights[i, j]
                 # Increase the current weight by a small value and compute the output
-                linear.weights[i, j] = old_value + eps
+                linear.weights[i, j] = original_weight + eps
                 output_plus = linear(x)
                 # Decrease the current weight by a small value and compute the output
-                linear.weights[i, j] = old_value - eps
+                linear.weights[i, j] = original_weight - eps
                 output_minus = linear(x)
                 # Compute the numerical gradient
                 estimated_gradient = (output_plus - output_minus).sum() / (2 * eps)
                 # Reset the weight to its original value
-                linear.weights[i, j] = old_value
+                linear.weights[i, j] = original_weight
                 # Compute the gradient via backpropagation
-                grad_output = np.ones_like(original_output)
-                linear.backward(grad_output)
-                real_gradient = linear.weight_grad[i, j]
+                linear.backward(fake_grad_output)
+                actual_gradient = linear.weight_grad[i, j]
                 # Verify that the computed gradient matches the numerical estimate
-                assert estimated_gradient == pytest.approx(real_gradient, abs=1e-5)
+                assert estimated_gradient == pytest.approx(actual_gradient, abs=1e-5)
 
 def test_relu_forward_positive():   #noqa
     """Test the ReLU forward function with positive and zero inputs."""
