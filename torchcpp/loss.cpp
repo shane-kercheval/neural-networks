@@ -36,4 +36,10 @@ Eigen::MatrixXd CrossEntropyLoss::backward() {
     return grad_logits;
 }
 
+SGD::SGD(double learning_rate) : learning_rate_(learning_rate) {}
+
+void SGD::operator()(Eigen::MatrixXd& parameters, const Eigen::MatrixXd& gradients) const {
+    parameters -= learning_rate_ * gradients;
+}
+
 }

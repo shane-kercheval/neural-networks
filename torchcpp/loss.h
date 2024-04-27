@@ -52,4 +52,30 @@ protected:
     VectorXi targets_cache_;
 };
 
+
+/**
+ * @brief Stochastic Gradient Descent optimizer.
+*/
+class SGD {
+public:
+    /**
+     * @brief Construct a new SGD object
+     * 
+     * @param learning_rate The learning rate (multiplier) to use for the optimizer.
+    */
+    explicit SGD(double learning_rate);
+
+    /**
+     * @brief Update the parameters using the gradients and learning rate.
+     * 
+     * @param parameters The parameters to update.
+     * @param gradients The gradients to use for updating the parameters.
+    */
+    void operator()(Eigen::MatrixXd& parameters, const Eigen::MatrixXd& gradients) const;
+
+private:
+    double learning_rate_;
+};
+
+
 }
