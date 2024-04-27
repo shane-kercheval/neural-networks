@@ -4,8 +4,8 @@
 int main() {
     // print hello world
 
-    Eigen::MatrixXd training_images;
-    std::vector<int> training_labels;
+    MatrixXd training_images;
+    VectorXi training_labels;
     std::cout << "Loading training images/labels" << std::endl;
     torchcpp_data::load_mnist_data(
         training_images,
@@ -16,8 +16,8 @@ int main() {
     std::cout << "Training images: " << training_images.rows() << std::endl;
     std::cout << "Training labels: " << training_labels.size() << std::endl;
 
-    Eigen::MatrixXd test_images;
-    std::vector<int> test_labels;
+    MatrixXd test_images;
+    VectorXi test_labels;
     std::cout << "Loading test images/labels" << std::endl;
     torchcpp_data::load_mnist_data(
         test_images,

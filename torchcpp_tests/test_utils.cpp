@@ -2,6 +2,7 @@
 #include "torchcpp.h"
 #include <Eigen/Dense>
 
+
 // Testing He initialization scale
 TEST(UtilsTest, he_init_scale) {
     int ignored = 0;
@@ -33,7 +34,7 @@ TEST(SoftmaxTest, softmax) {
 
 TEST(load_mnist_data, data_loads_successfully) {
     Eigen::MatrixXd images;
-    std::vector<int> labels;
+    VectorXi labels;
     torchcpp_data::load_mnist_data(
         images,
         labels,
@@ -50,7 +51,7 @@ TEST(load_mnist_data, data_loads_successfully) {
 
 TEST(load_mnist_data, data_loads_successfully_all_images) {
     Eigen::MatrixXd images;
-    std::vector<int> labels;
+    VectorXi labels;
     // not specifying the number of images to load should load all images
     torchcpp_data::load_mnist_data(
         images,
@@ -68,7 +69,7 @@ TEST(load_mnist_data, data_loads_successfully_all_images) {
 
 TEST(load_mnist_data, fails_on_invalid_path) {
     Eigen::MatrixXd images;
-    std::vector<int> labels;
+    VectorXi labels;
     EXPECT_THROW(
         torchcpp_data::load_mnist_data(
             images,

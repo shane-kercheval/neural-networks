@@ -36,7 +36,7 @@ namespace torchcpp_data {
 
     void load_mnist_data(
             Eigen::MatrixXd& images,
-            std::vector<int>& labels,
+            VectorXi& labels,
             const std::string& image_path,
             const std::string& label_path,
             unsigned int num_images

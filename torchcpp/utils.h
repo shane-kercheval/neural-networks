@@ -6,6 +6,7 @@
 #include <Eigen/Dense>
 
 using Eigen::MatrixXd;
+using Eigen::VectorXi;
 
 namespace torchcpp {
 
@@ -51,7 +52,7 @@ namespace torchcpp_data {
      * Example usage:
      * @code
      * std::vector<VectorXd> images;
-     * std::vector<int> labels;
+     * VectorXi labels;
      * load_mnist_data(
      *    images,
      *    labels,
@@ -73,7 +74,7 @@ namespace torchcpp_data {
      */
     void load_mnist_data(
         MatrixXd& images,
-        std::vector<int>& labels,
+        VectorXi& labels,
         const std::string& image_path,
         const std::string& label_path,
         unsigned int num_images = 0
