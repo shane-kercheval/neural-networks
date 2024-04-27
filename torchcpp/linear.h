@@ -1,7 +1,8 @@
 #pragma once
 #include <Eigen/Dense>
 #include <random>
-#include "torchcpp.h"
+#include "module.h"
+#include "utils.h"
 
 using Eigen::MatrixXd;
 
@@ -43,6 +44,16 @@ public:
     void zero_grad() override;
 
 protected:
+    int in_features_;
+    int out_features_;
+    MatrixXd weights_;
+    // i'm using MatrixXd for biases_ and bias_grad_ because the optimizer function requires
+    // a reference to a MatrixXd object, and i can't pass a reference to a VectorXd object
+    MatrixXd biases_;
+    MatrixXd weight_grad_;
+    MatrixXd bias_grad_;
+    MatrixXd x_cached_;  // cache the input for the backward pass
+
     /**
      * @brief Returns the gradient with respect to the input.
      * 
@@ -103,17 +114,6 @@ protected:
      * @param optimizer The optimizer to use for updating the weights and biases.
     */
     void step_imp(const std::function<void(MatrixXd&, MatrixXd&)>& optimizer) override;
-
-protected:
-    int in_features_;
-    int out_features_;
-    MatrixXd weights_;
-    // i'm using MatrixXd for biases_ and bias_grad_ because the optimizer function requires
-    // a reference to a MatrixXd object, and i can't pass a reference to a VectorXd object
-    MatrixXd biases_;
-    MatrixXd weight_grad_;
-    MatrixXd bias_grad_;
-    MatrixXd x_cached_;  // cache the input for the backward pass
 };
 
 }
