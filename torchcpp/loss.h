@@ -39,10 +39,6 @@ public:
     */
     double forward(const MatrixXd& logits, const VectorXi& targets);
 
-protected:
-    MatrixXd logits_cache_;
-    VectorXi targets_cache_;
-
     /**
      * @brief Computes and returns the gradient of the loss with respect to the logits.
      * 
@@ -50,6 +46,10 @@ protected:
      * Calculated in the next layer and passed to this layer during backpropagation.
     */
     MatrixXd backward();
+
+protected:
+    MatrixXd logits_cache_;
+    VectorXi targets_cache_;
 };
 
 }
