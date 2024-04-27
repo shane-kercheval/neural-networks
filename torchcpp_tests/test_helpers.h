@@ -28,6 +28,8 @@ public:
     // Expose protected members as public for testing
     MatrixXd& get_weights() { return weights_; }
     MatrixXd& get_weight_grad() { return weight_grad_; }
+    MatrixXd& get_biases() { return biases_; }
+    MatrixXd& get_bias_grad() { return bias_grad_; }
 };
 
 }
