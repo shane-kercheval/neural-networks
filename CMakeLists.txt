@@ -13,9 +13,10 @@ add_compile_options(-Wall)
 add_library(torchcpp_lib)
 target_sources(torchcpp_lib
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/linear.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/utils.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/activations.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/linear.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/loss.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/torchcpp/utils.cpp
 )
 
 # Set the C++ standard for the library, and means that torchcpp_lib requires the C++20 standard.
@@ -64,10 +65,11 @@ function(create_test target)
 endfunction()
 
 # Create test executables
-create_test(test_utils)
-create_test(test_module)
-create_test(test_linear)
 create_test(test_activations)
+create_test(test_linear)
+create_test(test_loss)
+create_test(test_module)
+create_test(test_utils)
 
 add_executable(torchcpp_mlp
     ${CMAKE_CURRENT_SOURCE_DIR}/multilayer_perceptron/torchcpp_mlp_mnist.cpp

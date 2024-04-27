@@ -13,6 +13,24 @@ TEST(UtilsTest, glorot_init_scale) {
     EXPECT_NEAR(torchcpp::glorot_init_scale(8, 12), std::sqrt(6.0 / (8 + 12)), 0.001);
 }
 
+TEST(SoftmaxTest, softmax) {
+    MatrixXd logits(3, 3);
+    VectorXi targets(3);
+    logits << 0.1, 1.2, 0.3,
+              2.0, -1.0, 0.0,
+              -0.5, 0.0, 1.5;
+    targets << 1, 0, 2;
+    // expcted probabilities calculated from python unit test
+    // array([[0.1913667280438832, 0.5748974225032308, 0.23373584945288603],
+    //        [0.8437947344813396, 0.04201006613406606, 0.1141951993845945],
+    //        [0.09962364806231833, 0.16425162762508783, 0.7361247243125939]])
+    MatrixXd expected_probabilities(3, 3);
+    expected_probabilities << 0.1913667280438832, 0.5748974225032308, 0.23373584945288603,
+                              0.8437947344813396, 0.04201006613406606, 0.1141951993845945,
+                              0.09962364806231833, 0.16425162762508783, 0.7361247243125939;
+    ASSERT_TRUE(expected_probabilities.isApprox(torchcpp::softmax(logits)));
+}
+
 TEST(load_mnist_data, data_loads_successfully) {
     Eigen::MatrixXd images;
     std::vector<int> labels;

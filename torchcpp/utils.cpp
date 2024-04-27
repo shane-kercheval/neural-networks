@@ -22,6 +22,14 @@ namespace torchcpp {
         return std::sqrt(GLOROT_FACTOR / (in_features + out_features));
     }
 
+    MatrixXd softmax(const MatrixXd& logits) {
+        // `logits.rowwise().maxCoeff()` gets the maximum value in each row (i.e. across columns)
+        // We want to apply the max value of each row to all elements (i.e. columns) in that row
+        MatrixXd centered_logits = logits.array().colwise() - logits.rowwise().maxCoeff().array();
+        MatrixXd exp_logits = centered_logits.array().exp();
+        // `exp_logits.rowwise().sum()` gets the sum of the exponential for each row (across columns)
+        return exp_logits.array().colwise() / exp_logits.rowwise().sum().array();
+    }
 }
 
 namespace torchcpp_data {

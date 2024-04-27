@@ -4,7 +4,8 @@ namespace torchcpp {
 
 MatrixXd ReLU::forward(const MatrixXd& x) {
     if (Module::training) {
-        output_cache_ = x.cwiseMax(0.0);;
+        // component-wise (i.e. element-wise) maximum of x and 0
+        output_cache_ = x.cwiseMax(0.0);
         return output_cache_;
     }
     return x.cwiseMax(0.0);

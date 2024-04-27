@@ -5,6 +5,8 @@
 #include <string>
 #include <Eigen/Dense>
 
+using Eigen::MatrixXd;
+
 namespace torchcpp {
 
     /**
@@ -29,6 +31,15 @@ namespace torchcpp {
      */
     double glorot_init_scale(int in_features, int out_features);
 
+    /**
+     * Applies the softmax function to the logits and returns the probabilities
+     * 
+     * @param logits The logits (raw output from neural net) for each class. Each row is a sample
+     * and each column is a class.
+     * @return The probabilities for each class for each sample. The sum of each row will be 1.
+    */
+    MatrixXd softmax(const MatrixXd& logits);
+
 }
 
 namespace torchcpp_data {
@@ -39,7 +50,7 @@ namespace torchcpp_data {
      *
      * Example usage:
      * @code
-     * std::vector<Eigen::VectorXd> images;
+     * std::vector<VectorXd> images;
      * std::vector<int> labels;
      * load_mnist_data(
      *    images,
@@ -61,7 +72,7 @@ namespace torchcpp_data {
      * will be loaded.
      */
     void load_mnist_data(
-        Eigen::MatrixXd& images,
+        MatrixXd& images,
         std::vector<int>& labels,
         const std::string& image_path,
         const std::string& label_path,
