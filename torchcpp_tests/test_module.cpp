@@ -87,7 +87,7 @@ TEST(SequentialTest, test_linear_relu_sequential_forward) {
     ASSERT_EQ(output.rows(), num_samples);
     ASSERT_EQ(output.cols(), num_classes);
     for (torchcpp::Module* module : layers) {
-        delete module;
+        delete module;  // NOLINT(cppcoreguidelines-owning-memory)
     }
 }
 
@@ -138,7 +138,7 @@ TEST(SequentialTest, test_linear_relu_sequential_backwards) {
         ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[0])->get_biases().isApprox(original_biases));
     }
     for (torchcpp::Module* module : layers) {
-        delete module;
+        delete module;  // NOLINT(cppcoreguidelines-owning-memory)
     }
 }
 

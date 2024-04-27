@@ -125,9 +125,12 @@ protected:
 
 class Sequential : public Module {
 public:
-    Sequential(std::vector<Module*> layers) : layers_(layers) {}
+    Sequential(std::vector<Module*> layers) : layers_(std::move(layers)) {}
+    // std::move(layers) casts layers to an rvalue, which allows layers_ to take ownership of
+    // layers's resources. This means no new copy of the vector is created, which can be more efficient.
 
-    MatrixXd forward(const MatrixXd& x) {
+
+    MatrixXd forward(const MatrixXd& x) override {
         MatrixXd output = x;
         for (Module* module : layers_) {
             output = module->forward(output);
@@ -135,15 +138,15 @@ public:
         return output;
     }
 
-    MatrixXd backward_impl(const MatrixXd& grad_output) {
+    MatrixXd backward_impl(const MatrixXd& grad_output) override {
         MatrixXd output = grad_output;
-        for (auto iter = layers_.rbegin(); iter != layers_.rend(); ++iter) {
+        for (auto iter = layers_.rbegin(); iter != layers_.rend(); ++iter) {  // NOLINT(modernize-loop-convert)
             output = (*iter)->backward(output);
         }
         return output;
     }
 
-    void step_imp(const std::function<void(MatrixXd&, MatrixXd&)>& optimizer) {
+    void step_imp(const std::function<void(MatrixXd&, MatrixXd&)>& optimizer) override {
         for (Module* module : layers_) {
             module->step(optimizer);
         }
