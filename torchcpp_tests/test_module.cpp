@@ -108,14 +108,21 @@ TEST(SequentialTest, test_linear_relu_sequential_backwards) {
     };
     torchcpp::Sequential model(layers);
 
-    MatrixXd original_weights = dynamic_cast<tests::TestableLinear*>(layers[0])->get_weights();
-    MatrixXd original_biases = dynamic_cast<tests::TestableLinear*>(layers[0])->get_biases();
-    MatrixXd original_weight_grads = dynamic_cast<tests::TestableLinear*>(layers[0])->get_weight_grad();
-    MatrixXd original_bias_grads = dynamic_cast<tests::TestableLinear*>(layers[0])->get_bias_grad();
+    MatrixXd original_weights_0 = dynamic_cast<tests::TestableLinear*>(layers[0])->get_weights();
+    MatrixXd original_biases_0 = dynamic_cast<tests::TestableLinear*>(layers[0])->get_biases();
+    MatrixXd original_weight_grads_0 = dynamic_cast<tests::TestableLinear*>(layers[0])->get_weight_grad();
+    MatrixXd original_bias_grads_0 = dynamic_cast<tests::TestableLinear*>(layers[0])->get_bias_grad();
+
+    MatrixXd original_weights_2 = dynamic_cast<tests::TestableLinear*>(layers[2])->get_weights();
+    MatrixXd original_biases_2 = dynamic_cast<tests::TestableLinear*>(layers[2])->get_biases();
+    MatrixXd original_weight_grads_2 = dynamic_cast<tests::TestableLinear*>(layers[2])->get_weight_grad();
+    MatrixXd original_bias_grads_2 = dynamic_cast<tests::TestableLinear*>(layers[2])->get_bias_grad();
 
     // weight and bias grads should be zero before backpropagation
-    ASSERT_TRUE(original_weight_grads.isZero());
-    ASSERT_TRUE(original_bias_grads.isZero());
+    ASSERT_TRUE(original_weight_grads_0.isZero());
+    ASSERT_TRUE(original_bias_grads_0.isZero());
+    ASSERT_TRUE(original_weight_grads_2.isZero());
+    ASSERT_TRUE(original_bias_grads_2.isZero());
 
     {
         torchcpp::USING_TRAINING_MODE _;
@@ -131,11 +138,15 @@ TEST(SequentialTest, test_linear_relu_sequential_backwards) {
         // At this point, the gradients should be calculated and will be different from the original
         ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[0])->get_weight_grad().isZero());
         ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[0])->get_bias_grad().isZero());
+        ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[2])->get_weight_grad().isZero());
+        ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[2])->get_bias_grad().isZero());
 
         model.step(torchcpp::SGD(0.1));
         // after stepping, the weights should be updated
-        ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[0])->get_weights().isApprox(original_weights));
-        ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[0])->get_biases().isApprox(original_biases));
+        ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[0])->get_weights().isApprox(original_weights_0));
+        ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[0])->get_biases().isApprox(original_biases_0));
+        ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[2])->get_weights().isApprox(original_weights_2));
+        ASSERT_FALSE(dynamic_cast<tests::TestableLinear*>(layers[2])->get_biases().isApprox(original_biases_2));
     }
     for (torchcpp::Module* module : layers) {
         delete module;  // NOLINT(cppcoreguidelines-owning-memory)
