@@ -108,5 +108,17 @@ int main() {
     double test_loss = loss_function.forward(test_logits, test_labels);
     std::cout << "Test loss: " << test_loss << std::endl;
 
+    // Test accuracy on test set
+    MatrixXd probabilities = torchcpp::softmax(test_logits);
+    // get the index of the highest probability in each row 
+    Eigen::VectorXi predicted_indices = Eigen::VectorXi::Zero(test_logits.rows());
+    for (int i = 0; i < test_logits.rows(); ++i) {
+        Eigen::VectorXd::Index max_index;
+        test_logits.row(i).maxCoeff(&max_index);
+        predicted_indices(i) = max_index;
+    }
+    double accuracy = (predicted_indices.array() == test_labels.array()).cast<double>().mean();
+    std::cout << "Test accuracy: " << accuracy << std::endl;
+
     return 0;
 }
